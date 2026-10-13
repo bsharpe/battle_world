@@ -1,5 +1,6 @@
 import { createVectorRenderer } from './render/gl.js';
 import { createLineBuffer, makeCamera, drawBackground, drawWorld, drawModel } from './render/scene.js';
+import { createHudState, updateHudState, drawHud } from './render/hud.js';
 import { createGame, step } from './game.js';
 import { createInput } from './input.js';
 import { mulberry32 } from './math.js';
@@ -16,7 +17,7 @@ try {
   throw err;
 }
 const buf = createLineBuffer(), input = createInput();
-const app = { game: createGame({ rng: mulberry32(seed) }), t: 0, shape: 0 };
+const app = { game: createGame({ rng: mulberry32(seed) }), t: 0, shape: 0, hud: createHudState() };
 window.__bz = app; // debug handle for browser verification
 
 function framePlay(inp, dt) {
@@ -25,6 +26,8 @@ function framePlay(inp, dt) {
   const cam = makeCamera(g.player.x, g.player.z, g.player.facing, g.jolt);
   drawBackground(buf, cam, dt);
   drawWorld(buf, g, cam, app.t);
+  updateHudState(app.hud, g, dt);
+  drawHud(buf, g, app.hud, g.score, app.t);
 }
 
 const SHAPE_NAMES = Object.keys(SHAPES);

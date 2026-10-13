@@ -24,7 +24,8 @@ export const BG = {
   volcanoY: 120,
 };
 
-export const HUD = { livesX: 128, livesY: 352, livesSpacing: 48 }; // ponytail: from arcade screenshots
+// ponytail: DrawScoreLives beams to (+128, +360). The life VJSR does not restore the beam; it ends at x=+57.
+export const HUD = { livesX: 128, livesY: 360, livesSpacing: 57 };
 
 export const PLAYER = {
   speed: 192 * TICK,            // both treads forward: 2 steps of 96 u per tick
