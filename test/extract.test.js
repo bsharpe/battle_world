@@ -78,3 +78,11 @@ test('generated ROM data has the arcade inventory', () => {
   for (const n of ['10', '11', '12', '13', '14', '15', '18', '19', '1a', '1b', '1c', '1d']) assert.ok(SHAPES[`chunk${n}`], `debris chunk${n}`);
   assert.deepEqual(STRINGS.find((s) => s.text === 'ENEMY IN RANGE'), { x: -440, y: 360, text: 'ENEMY IN RANGE' });
 });
+
+test('life icon is the tank VJSR target, not the following windshield crack', () => {
+  const crack0 = VG.cracks[0];
+  assert.notDeepEqual(VG.life.segs.slice(-crack0.length), crack0);
+  assert.equal(VG.life.segs.length, 9);
+  assert.deepEqual(VG.life.segs[0], [0, 0, -6, 6, 12]);
+  assert.deepEqual(VG.life.end, [57, 0]);
+});

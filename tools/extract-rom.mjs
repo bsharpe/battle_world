@@ -132,7 +132,7 @@ export function buildRom({ mem, avg, glyphs, strings }) {
     reticle1: runAvg(avg, 0x34cc),
     reticle2: runAvg(avg, 0x3500),
     radar: runAvg(avg, 0x353c),
-    life: runAvg(avg, 0x3590),
+    life: runAvg(avg, avg.get(0x3590).target),
     cracks: jsrList(avg, 0x36f8, 16),
     landscape: jsrList(avg, 0x3006, 8),
   };
