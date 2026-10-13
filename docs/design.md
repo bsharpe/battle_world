@@ -13,11 +13,11 @@ Source facts: `docs/research.md`.
 
 ## Units (ROM world units "u", seconds)
 - Player: move 3000 u/s; pivot 22°/s; body radius 1152.
-- Shell: 15,940 u/s, TTL 2.03 s, one in flight per side.
+- Shell: 15,940 u/s, TTL 2.03 s, one in flight per side. Spawns at the firer's position.
 - Slow tank: 3000 u/s, turn 22°/s, stand-off 1280. Super tank: 6000 u/s, turn 44°/s, stand-off 2048.
 - Missile: up to 8000 u/s, spawn alt 6144 and drop 4000 u/s, hittable below alt 512.
 - Saucer: drift up to ±4000 u/s per axis.
-- Obstacle radii: 832 / 832 / 1024 / 960.
+- Obstacle radii, unit then shell: narrow 832/224, tall 832/352, wide 1024/344, short 960/0.
 
 ## Layout
 ```
@@ -35,9 +35,12 @@ test/*.test.js        node --test on game.js / ai.js logic
 ```
 
 ## Key mechanics
-- **Treads to motion:** `fwd = (L+R)/2`, `turn = (R-L)/2`. Keyboard arcade mode synthesizes L and R from forward and turn input.
+- **Treads to motion:** `fwd = (L+R)/2`, `turn = (L-R)/2`. Positive turn is right. Keyboard arcade mode synthesizes L and R from forward and turn input.
 - **Collision:** circle vs circle on the XZ plane. Hitting an obstacle restores the previous position, jolts the horizon and shows "MOTION BLOCKED BY OBJECT".
-- **Shells:** checked against obstacle radii (short box excluded), then the enemy radius, which depends on facing.
+- **Shells:** spawn at the firer and stay hidden until they pass the near plane. Obstacle hits use the shell radii above. Unit hits use one circle until the facing-dependent ROM radius is restored.
+- **Targeting:** "ENEMY IN RANGE" and the on-target reticle only when the enemy can be hit. A missile at altitude 512 or higher is not targetable.
+- **Landscape:** mountain scroll uses the 3D camera, `focal / (4096 / τ)` pixels per AVG unit. HUD text stays on the original 768-tall AVG scale.
+- **Fanfare:** the 1812 excerpt plays on the 100K bonus tank.
 - **Spawn director:**
   - One ground/air enemy at a time.
   - A 50% missile chance once score reaches 10K.

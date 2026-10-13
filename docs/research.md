@@ -19,7 +19,7 @@ Primary source: Andy McFadden's rev-2 ROM disassembly, https://6502disassembly.c
 ## Player
 - Two treads (left/right stick, fire on right). Both fwd/back: 2 move steps/tick × 96 u = 192 u/tick. Opposite: pivot 2 rot steps/tick (~1.41°/tick ≈ 22°/s). One stick: 1 turn + 1 move step.
 - Body radius 1152 u. Blocked by obstacle → position restored, horizon jolt, "MOTION BLOCKED BY OBJECT".
-- One shell in flight. Shell: ~1020 u/tick, TTL ~32 ticks (~2 s), range ~32.5K u. Enemy shells identical.
+- One shell in flight. Shell: ~1020 u/tick, TTL ~32 ticks (~2 s), range ~32.5K u. Enemy shells identical. Position is copied from the firer; the shell is not drawn until it passes the near plane.
 
 ## Enemies (one ground/missile enemy at a time + at most one saucer; all die in one hit)
 | Enemy | Points | Appears | Movement |
@@ -35,7 +35,8 @@ Primary source: Andy McFadden's rev-2 ROM disassembly, https://6502disassembly.c
 
 ## Obstacles
 - 21 fixed, identical every game (ROM table), spread over ±32K.
-- Narrow pyramid (r 832), tall box (r 832), wide pyramid (r 1024), short box (r 960). Short boxes don't block shells (derived).
+- Against units: narrow pyramid r 832, tall box r 832, wide pyramid r 1024, short box r 960.
+- Against shells, `obst_proj_diam` ($6139) is compared to distance/4: narrow `$38` → 224, tall `$58` → 352, wide `$56` → 344, short `$00` → 0.
 
 ## Radar & messages
 - Sweep ~15.5°/tick (~1.5 s/rev), blip for tank/missile only within 32,768 u, brightens + ping as sweep passes.
@@ -53,7 +54,7 @@ Primary source: Andy McFadden's rev-2 ROM disassembly, https://6502disassembly.c
 - Engine: discrete saw/square, frequency follows motor rev, gated by motion.
 - Cannon: loud (player) / soft (enemy). Explosion: LFSR noise ~12 kHz clock, loud on player hit.
 - POKEY: radar ping, saucer hum (ch1), collision "merp", extra life = 4 beeps, new enemy = 3 boops, missile buzz (ch3/4).
-- 9-note 1812 Overture fanfare on 100K bonus (KLOV says high-score entry).
+- 9-note 1812 Overture fanfare on the 100K bonus. KLOV attributes it to high-score entry; rev-2 plays it on the bonus, and this project follows the code.
 
 ## Attract mode
 - Alternates AI demo, high-score table, logo. Strings: "PRESS START", "INSERT COIN", "(C)(P) ATARI 1980", "GREAT SCORE", "BONUS TANK AT ...", "ENTER YOUR INITIALS".

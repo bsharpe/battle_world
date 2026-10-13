@@ -155,12 +155,12 @@ test('projectile shape decodes to a 5-vertex dart with 8 edges', () => {
   assert.deepEqual(shell.segs, [[0, 4, 28], [4, 1, 28], [1, 0, 28], [0, 3, 28], [3, 4, 28], [4, 2, 28], [2, 3, 28], [2, 1, 28]]);
 });
 
-test('reticle AVG routine yields the 9 visible strokes, invisible moves skipped', () => {
+test('reticle AVG routine yields the 8 visible strokes, invisible moves skipped', () => {
   const { avg } = parseListing(FIXTURE);
   const { segs } = runAvg(avg, 0x34cc);
-  assert.equal(segs.length, 9);
+  assert.equal(segs.length, 8);
   assert.deepEqual(segs[0], [0, -175, 0, -75, 6]);
-  assert.deepEqual(segs[8], [0, 75, 0, 175, 6]);
+  assert.deepEqual(segs[7], [0, 75, 0, 175, 6]);
 });
 
 test('string table positions are captured only inside the English table', () => {
@@ -501,19 +501,20 @@ export const PLAYER = {
   speed: 192 * TICK,            // both treads forward: 2 steps of 96 u per tick
   turnRate: 2 * STEP * TICK,    // treads opposed: 2 rotation steps per tick (~22°/s)
   collideRadius: 1152,          // unit-vs-unit
-  hitRadius: 640,               // ponytail: enemy shell vs player; tune by feel
+  hitRadius: 640,               // ponytail: enemy shell vs player. ROM radius is facing-dependent, about 224–400. Tune by feel.
 };
 
-export const SHELL = { speed: 1020 * TICK, life: 127 / 4 / TICK, muzzle: 800, maxSubstep: 200 };
+// muzzle 0: the ROM copies the firer's position. The near plane hides a shell still at the camera.
+export const SHELL = { speed: 1020 * TICK, life: 127 / 4 / TICK, muzzle: 0, maxSubstep: 200 };
 
 export const OBSTACLE = {
   unitRadius: { 0: 832, 1: 832, 12: 1024, 15: 960 }, // ROM obstacle_radius table
-  // ponytail: shell radius = footprint half-extent; short boxes are below the shell's flight path
-  shellRadius: { 0: 512, 1: 512, 12: 800, 15: 0 },
+  // obst_proj_diam ($6139) compared with distance/4. Short box is 0.
+  shellRadius: { 0: 224, 1: 352, 12: 344, 15: 0 },
 };
 
 export const ENEMY = {
-  hitRadius: 800, // ponytail: ROM varies this with facing; one circle until it feels wrong
+  hitRadius: 800, // ponytail: ROM varies this with facing (about 224–400); one circle until it feels wrong
   tank: { speed: 192 * TICK, turnFast: 2 * STEP * TICK, turnSlow: STEP * TICK, standoff: 1280, score: 1000 },
   super: { speed: 384 * TICK, turnFast: 4 * STEP * TICK, turnSlow: 2 * STEP * TICK, standoff: 2048, score: 3000 },
   missile: {
@@ -546,7 +547,7 @@ export const RULES = {
   bonusAt: [15000, 100000],
   missileScore: 10000,
   superAfterMissiles: 6,
-  deathPause: 3,
+  deathPause: 30 / TICK, // ROM: (46-16)=30 logic frames, ~2 s
   enemyKillBonus: 1000,
   alwaysAggressiveScore: 100000,
 };
@@ -971,7 +972,8 @@ function updateTank(g, e, dt, cfg) {
   const aggressive = g.score - g.enemyScore >= ENEMY.aggressiveLead || g.score >= RULES.alwaysAggressiveScore;
   e.aimTimer -= dt;
   if (e.aimTimer <= 0) {
-    e.goal = aggressive || e.age >= ENEMY.homingAfter ? toPlayer : g.rng() * TAU;
+    // A 5K lead only shortens the re-aim. Random headings last until homingAfter either way.
+    e.goal = e.age >= ENEMY.homingAfter ? toPlayer : g.rng() * TAU;
     e.aimTimer = aggressive ? ENEMY.aggressiveReaim : 1 + g.rng() * 3;
   }
   const ox = e.x, oz = e.z, wasReversing = e.reverseFor > 0;
@@ -983,7 +985,7 @@ function updateTank(g, e, dt, cfg) {
     const aligned = Math.abs(err) <= ENEMY.aimTolerance;
     const rate = (aligned ? cfg.turnSlow : cfg.turnFast) * dt;
     e.facing = wrapAngle(e.facing + clamp(err, -rate, rate));
-    if (d > cfg.standoff) move(e, (aligned ? 1 : 0.5) * cfg.speed * dt);
+    if (d > cfg.standoff) move(e, cfg.speed * dt);
   }
   if (unitBlocked(g, e.x, e.z, e)) {
     e.x = ox;
@@ -1087,8 +1089,7 @@ git commit -m "feat: enemy spawn director, tank/missile steering and fire rules,
 
 ```js
 import { makeEnemy } from '../src/ai.js';
-import { SHELL } from '../src/config.js';
-import { OBSTACLE } from '../src/config.js';
+import { SHELL, OBSTACLE, RULES } from '../src/config.js';
 import { dist } from '../src/math.js';
 
 const FIRE = { left: 0, right: 0, fire: true };
@@ -1147,7 +1148,7 @@ test('crossing 15,000 and 100,000 each award a bonus tank', () => {
   assert.ok(events.some((e) => e.type === 'bonusTank' && !e.big));
 });
 
-test('an enemy shell kills the player, who respawns clear of obstacles after the pause', () => {
+test('an enemy shell kills the player, who stays dead for the pause, then respawns clear of obstacles', () => {
   for (let seed = 1; seed <= 20; seed++) {
     const g = createGame({ rng: mulberry32(seed) }); // real ROM obstacle field
     g.enemyDelay = Infinity;
@@ -1156,7 +1157,9 @@ test('an enemy shell kills the player, who respawns clear of obstacles after the
     assert.ok(hit.some((e) => e.type === 'playerHit'));
     assert.equal(g.player.alive, false);
     assert.equal(g.lives, 2);
-    run(g, IDLE, 3.1);
+    run(g, IDLE, 1.5);
+    assert.equal(g.player.alive, false, `seed ${seed} respawned during the pause`);
+    run(g, IDLE, RULES.deathPause);
     assert.equal(g.player.alive, true);
     assert.ok(!g.obstacles.some((o) => dist(g.player.x, g.player.z, o.x, o.z) < OBSTACLE.unitRadius[o.type]), `seed ${seed}`);
   }
@@ -1885,7 +1888,7 @@ import { TAU, wrapCoord } from '../math.js';
 
 const OBSTACLE_SHAPES = { 0: 'narrowPyramid', 1: 'tallBox', 12: 'widePyramid', 15: 'shortBox' };
 const ENEMY_SHAPES = { tank: 'tank', super: 'superTank', missile: 'missile' };
-const AVG_PX = VIEW.height / 768; // ROM screen units → pixels
+const LAND_PX = VIEW.focal / (4096 / TAU); // px per AVG unit; one full turn matches the 3D camera
 
 export function makeCamera(x, z, facing, jolt = 0) {
   return { x, z, facing, sin: Math.sin(facing), cos: Math.cos(facing), horizonY: VIEW.height / 2 + jolt * VIEW.joltPx };
@@ -1930,7 +1933,7 @@ export function drawBackground(buf, cam, dt) {
     let base = (((i * 512 - scroll) % 4096) + 4096) % 4096;
     if (base > 2048) base -= 4096;
     for (const [x0, y0, x1, y1, inten] of segs) {
-      buf.push(W / 2 + (base + x0) * AVG_PX, hy - (y0 + BG.yOffset) * AVG_PX, W / 2 + (base + x1) * AVG_PX, hy - (y1 + BG.yOffset) * AVG_PX, inten / 12);
+      buf.push(W / 2 + (base + x0) * LAND_PX, hy - (y0 + BG.yOffset) * LAND_PX, W / 2 + (base + x1) * LAND_PX, hy - (y1 + BG.yOffset) * LAND_PX, inten / 12);
     }
   });
 }
@@ -2020,9 +2023,10 @@ Expected:
 - the obstacles pass by in perspective;
 - the mountains scroll left when turning right and never jump;
 - the shape stays continuous across the full 360°;
-- driving into a pyramid stops the tank.
+- driving into a pyramid stops the tank;
+- a 90° turn carries the moon off the screen at the same rate as a world object that started dead ahead.
 
-At facing 0 (on load) the arcade shows the crescent moon just left of the reticle at screen centre. Adjust `BG.phase` (AVG units, 0–4095) until that holds. If the mountains float above or sink below the horizon, adjust `BG.yOffset`. Record both values in their comments.
+`LAND_PX` is what makes that last point true. Leave it on the camera focal length. At facing 0 (on load) the arcade shows the crescent moon just left of the reticle at screen centre. Adjust `BG.phase` (AVG units, 0–4095) until that holds. If the mountains float above or sink below the horizon, adjust `BG.yOffset`. Record both values in their comments.
 
 - [ ] **Step 5: Run unit tests (regression)**
 
@@ -2108,6 +2112,13 @@ test('the target reticle lights exactly when a shot fired now would pass through
   assert.equal(onTarget(P, { x: 0, z: -10000 }), false);
 });
 
+test('a missile above the hittable altitude is not in range and not on target', () => {
+  const high = { x: 0, z: 10000, y: 600 };
+  assert.equal(enemyInRange(P, high), false);
+  assert.equal(onTarget(P, high), false);
+  assert.equal(onTarget(P, { x: 0, z: 10000, y: 0 }), true);
+});
+
 test('radar sweep crossing detection', () => {
   assert.equal(sweepCrossed(0, 0.1, 0.05), true);
   assert.equal(sweepCrossed(0, 0.1, 0.2), false);
@@ -2169,11 +2180,13 @@ export function enemyDirection(player, target) {
 }
 
 export function enemyInRange(player, target) {
+  if ((target.y ?? 0) >= ENEMY.missile.hittableBelow) return false;
   const [rx, rz] = relativeView(player, target.x, target.z);
   return rz > 0 && Math.abs(rx) < (rz * VIEW.width) / 2 / VIEW.focal && Math.hypot(rx, rz) < RADAR.range;
 }
 
 export function onTarget(player, target) {
+  if ((target.y ?? 0) >= ENEMY.missile.hittableBelow) return false;
   const [rx, rz] = relativeView(player, target.x, target.z);
   return rz > 0 && rz < RADAR.range && Math.abs(rx) < ENEMY.hitRadius;
 }
@@ -2268,7 +2281,7 @@ git commit -m "feat: HUD with ROM font, radar sweep, messages, reticle, windshie
 - Modify: `src/main.js` (unlock on gesture, feed events and drones)
 
 **Interfaces:**
-- Consumes the event types from Task 5, plus `radarPing` and `fanfare` (emitted by `main.js`).
+- Consumes the event types from Task 5, plus `radarPing` (emitted by `main.js` when the sweep crosses a blip). A `bonusTank` event with `big` plays the 100K fanfare.
 - Produces `createAudio() → { unlock(), handle(events), update({ on, engine, saucer, missile }) }`.
   - `on`: drones audible at all.
   - `engine`: 0..1.
@@ -2630,7 +2643,6 @@ function framePlay(inp, dt) {
   if (g.over && (app.overFor += dt) > 3) {
     if (rankFor(app.scores, g.score) >= 0) {
       app.entry = { letters: [0, 0, 0], pos: 0, armed: true };
-      audio.handle([{ type: 'fanfare' }]);
       setMode('initials');
     } else setMode('attract');
   }
@@ -2687,7 +2699,7 @@ Expected:
 
 Via `javascript_tool`, run `__bz.game.score = 12000; __bz.game.lives = 1`, then let a tank kill you (or push an enemy shell at the player as in the tests).
 Expected:
-- "GAME OVER", then GREAT SCORE / ENTER YOUR INITIALS with the fanfare;
+- "GAME OVER", then GREAT SCORE / ENTER YOUR INITIALS, with no fanfare (that plays on the 100K bonus);
 - ←/→ change the blinking letter and Space selects;
 - after 3 letters it returns to attract with the new score at the top.
 
@@ -2715,7 +2727,7 @@ git commit -m "feat: attract mode, game over, initials entry, persistent high sc
 
 - [ ] **Step 1: Find the volcano crater in the landscape**
 
-The ROM shows volcano particles while facing is in [0x39, 0x88), which is landscape x ≈ 912–2176 before `BG.phase`. Run:
+The ROM shows volcano particles while facing is in [0x39, 0x88), which is landscape x ≈ 912–2176 before `BG.phase`. The crater is the lowest vertex in that window. Run:
 ```bash
 node -e "
 import('./src/data/rom.js').then(({ VG }) => {
@@ -2723,7 +2735,7 @@ import('./src/data/rom.js').then(({ VG }) => {
   VG.landscape.forEach((segs, i) => segs.forEach(([x0, y0, x1, y1]) => {
     for (const [x, y] of [[x0, y0], [x1, y1]]) {
       const gx = i * 512 + x;
-      if (gx >= 912 && gx < 2176 && (!best || y > best.y)) best = { x: gx, y };
+      if (gx >= 912 && gx < 2176 && (!best || y < best.y)) best = { x: gx, y };
     }
   }));
   console.log(best);
@@ -2757,7 +2769,7 @@ Replace the enemy line in `drawWorld` with:
     }
     if (e.kind === 'tank') {
       const s = Math.sin(e.facing), c = Math.cos(e.facing);
-      drawModel(buf, cam, DISH, e.x + DISH_X * c + DISH_Z * s, e.y, e.z - DISH_X * s + DISH_Z * c, t * 3);
+      drawModel(buf, cam, DISH, e.x + DISH_X * c + DISH_Z * s, e.y, e.z - DISH_X * s + DISH_Z * c, e.facing + t * 3);
     }
   }
 ```
@@ -2778,7 +2790,7 @@ Append to the end of `drawBackground`:
     if (p.y < 0) return false;
     let base = (((BG.volcanoX + p.x - scroll) % 4096) + 4096) % 4096;
     if (base > 2048) base -= 4096;
-    const px = W / 2 + base * AVG_PX, py = hy - (BG.volcanoY + BG.yOffset + p.y) * AVG_PX;
+    const px = W / 2 + base * LAND_PX, py = hy - (BG.volcanoY + BG.yOffset + p.y) * LAND_PX;
     buf.push(px, py, px, py, 1);
     return true;
   });
@@ -2824,7 +2836,7 @@ git commit -m "feat: tread animation, spinning radar dish, erupting volcano"
 ## Deliberately skipped (add when wanted)
 
 - **Attract-mode AI demo.** The original alternates in a demo game; the logo and score table cover attract. Add it when the AI is tuned enough to look good playing itself.
-- **Facing-dependent enemy hit radius.** One circle (`ENEMY.hitRadius`) is used. Revisit if broadside versus head-on shots feel wrong.
+- **Facing-dependent enemy hit radius.** One circle (`ENEMY.hitRadius` / `PLAYER.hitRadius`) stands in for the ROM formula, about 224–400 u. Revisit if broadside versus head-on shots feel wrong.
 - **Missiles hopping low obstacles.** Missiles ignore obstacles entirely.
 - **Projectile explosion vector effect.** ROM shape `$0E` uses AVG command 5; shell bursts are sound only.
 - **DIP-switch options** (lives, bonus thresholds, missile score). The MAME defaults are hard-coded in `RULES`.
