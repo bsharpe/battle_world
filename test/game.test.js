@@ -102,11 +102,26 @@ test('shooting a tank scores 1000 and clears the enemy slot', () => {
 
 test('a missile still high in the air cannot be shot', () => {
   const g = quiet();
-  g.enemy = makeEnemy('missile', 0, 9000, Math.PI);
+  // On z=2500 the shell passes inside hitRadius within 0.15 s. y=1500 stays above
+  // hittableBelow for that whole pass; y=600 falls through the gate while still in range.
+  g.enemy = makeEnemy('missile', 0, 2500, Math.PI);
+  g.enemy.y = 1500;
   g.enemy.straight = true;
   step(g, FIRE, 1 / 60);
-  run(g, IDLE, 0.3);
-  assert.equal(g.score, 0, 'shell passed under the descending missile');
+  run(g, IDLE, 0.15);
+  assert.equal(g.score, 0);
+  assert.ok(g.enemy);
+});
+
+test('a missile on the ground on that same path can be shot', () => {
+  const g = quiet();
+  g.enemy = makeEnemy('missile', 0, 2500, Math.PI);
+  g.enemy.y = 0;
+  g.enemy.straight = true;
+  step(g, FIRE, 1 / 60);
+  run(g, IDLE, 0.15);
+  assert.equal(g.score, 2000);
+  assert.equal(g.enemy, null);
 });
 
 test('crossing 15,000 and 100,000 each award a bonus tank', () => {
@@ -118,6 +133,20 @@ test('crossing 15,000 and 100,000 each award a bonus tank', () => {
   const events = run(g, IDLE, 0.6);
   assert.equal(g.lives, 4);
   assert.ok(events.some((e) => e.type === 'bonusTank' && !e.big));
+});
+
+test('dying clears in-flight shells so the pause cannot score', () => {
+  const g = quiet();
+  g.enemy = makeEnemy('tank', 0, 15000, Math.PI);
+  g.enemy.aimTimer = 100;
+  step(g, FIRE, 1 / 60);
+  enemyShellAtPlayer(g);
+  run(g, IDLE, 0.2);
+  assert.equal(g.player.alive, false);
+  assert.equal(g.shells.length, 0);
+  const score = g.score;
+  run(g, IDLE, 1);
+  assert.equal(g.score, score);
 });
 
 test('an enemy shell kills the player, who stays dead for the pause, then respawns clear of obstacles', () => {

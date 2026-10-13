@@ -39,6 +39,8 @@ export function step(g, input, dt) {
   updateEnemySlot(g, dt);
   updateSaucer(g, dt);
   updateShells(g, dt);
+  // killPlayer's clear is lost when it runs inside the shells filter.
+  if (!g.player.alive) g.shells = [];
   return g.events;
 }
 
