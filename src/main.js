@@ -1,6 +1,7 @@
 import { createVectorRenderer } from './render/gl.js';
-import { createLineBuffer, makeCamera, drawBackground, drawWorld, drawModel } from './render/scene.js';
+import { createLineBuffer, makeCamera, drawBackground, drawWorld, drawModel, inView } from './render/scene.js';
 import { createHudState, updateHudState, drawHud } from './render/hud.js';
+import { createAudio } from './audio.js';
 import { createGame, step } from './game.js';
 import { createInput } from './input.js';
 import { mulberry32 } from './math.js';
@@ -17,16 +18,25 @@ try {
   throw err;
 }
 const buf = createLineBuffer(), input = createInput();
+const audio = createAudio();
+for (const ev of ['keydown', 'pointerdown']) addEventListener(ev, () => audio.unlock());
 const app = { game: createGame({ rng: mulberry32(seed) }), t: 0, shape: 0, hud: createHudState() };
 window.__bz = app; // debug handle for browser verification
 
 function framePlay(inp, dt) {
   const g = app.game;
-  step(g, inp, dt);
+  const events = step(g, inp, dt);
   const cam = makeCamera(g.player.x, g.player.z, g.player.facing, g.jolt);
   drawBackground(buf, cam, dt);
   drawWorld(buf, g, cam, app.t);
-  updateHudState(app.hud, g, dt);
+  if (updateHudState(app.hud, g, dt)) events.push({ type: 'radarPing' });
+  audio.handle(events);
+  audio.update({
+    on: !g.over,
+    engine: g.player.alive ? (Math.abs(inp.left) + Math.abs(inp.right)) / 2 : 0,
+    saucer: !!g.saucer && !(g.saucer.dying > 0) && inView(cam, g.saucer.x, g.saucer.z),
+    missile: g.enemy?.kind === 'missile',
+  });
   drawHud(buf, g, app.hud, g.score, app.t);
 }
 
