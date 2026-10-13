@@ -104,7 +104,7 @@ export function drawWorld(buf, g, cam, t = 0) {
   const e = g.enemy;
   if (e) {
     drawModel(buf, cam, SHAPES[ENEMY_SHAPES[e.kind]], e.x, e.y, e.z, e.facing);
-    if (e.kind !== 'missile') {
+    if (e.kind === 'tank') {
       // Only the tread end facing the viewer is drawn; frames advance with distance travelled (reverse when backing up).
       // delta, not raw subtraction: the short wrap across ±32768 is the near end.
       const [dx, dz] = delta(e.x, e.z, cam.x, cam.z);

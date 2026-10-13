@@ -82,3 +82,33 @@ test('a tank seen across the world seam draws its near treads, not the far set',
   assert.ok(frontKeys.every((k) => drawn.has(k)), 'the near (front) treads were not projected');
   assert.ok(rearOnly.every((k) => !drawn.has(k)), 'the far (rear) treads were projected across the seam');
 });
+
+test('a super tank does not wear the slow-tank treads', () => {
+  // Rear treads sit at local z −736..−1024. superTank ends at local z −456,
+  // so those meshes hang off the hull. Only kind `tank` matches the tread set.
+  // Camera at the origin facing 0, enemy at z 5000 facing 0: the camera is
+  // behind the tank, so the near tread mesh is tread0, not tread4.
+  const cam = makeCamera(0, 0, 0);
+  const x = 0, y = 0, z = 5000, facing = 0;
+  const field = (kind) => ({ obstacles: [], enemy: { kind, x, y, z, facing, treadPhase: 0 }, saucer: null, shells: [], debris: [] });
+  const superWorld = createLineBuffer();
+  drawWorld(superWorld, field('super'), cam);
+  const hull = createLineBuffer();
+  const rear = createLineBuffer();
+  const front = createLineBuffer();
+  drawModel(hull, cam, SHAPES.superTank, x, y, z, facing);
+  drawModel(rear, cam, SHAPES.tread0, x, y, z, facing);
+  drawModel(front, cam, SHAPES.tread4, x, y, z, facing);
+  const drawn = new Set(segKeys(superWorld));
+  const hullKeys = segKeys(hull);
+  const rearKeys = segKeys(rear);
+  const frontKeys = segKeys(front);
+  assert.ok(hullKeys.length > 0, 'the super tank hull was culled instead of drawn');
+  assert.ok(hullKeys.every((k) => drawn.has(k)), 'the super tank hull was not projected');
+  assert.ok(rearKeys.length > 0 && frontKeys.length > 0, 'the tread meshes were culled instead of drawn');
+  assert.ok(rearKeys.every((k) => !drawn.has(k)) && frontKeys.every((k) => !drawn.has(k)), 'slow-tank treads were projected on the super tank');
+  const tankWorld = createLineBuffer();
+  drawWorld(tankWorld, field('tank'), cam);
+  const tankDrawn = new Set(segKeys(tankWorld));
+  assert.ok(rearKeys.every((k) => tankDrawn.has(k)), 'the slow tank lost its near treads');
+});

@@ -46,7 +46,7 @@ function frameAttract(inp, dt) {
   const cam = makeCamera(0, 0, app.modeT * 0.15);
   drawBackground(buf, cam, dt);
   drawWorld(buf, attractWorld, cam, app.t);
-  const d = Math.max(9000, 40000 - app.modeT * 8000); // logo flies in, then holds
+  const d = Math.max(9000, 30000 - app.modeT * 8000); // start at 30000: a start past ±32768 wraps behind the camera and the title pops in
   for (const shape of LOGO) drawModel(buf, cam, shape, Math.sin(cam.facing) * d, 0, Math.cos(cam.facing) * d, cam.facing + Math.PI);
   drawAttractText(buf, app.modeT, app.scores);
   if (inp.start) {
