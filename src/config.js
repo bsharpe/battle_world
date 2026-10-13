@@ -14,13 +14,12 @@ export const VIEW = {
   modelIntensity: 24, // ROM shape intensity (16..30) that maps to full brightness
 };
 
-// ponytail: the disassembly notes ROM shapes are vertically squashed 2x ("halve X/Z or double Y").
-// Calibrate against arcade screenshots: tank height vs length.
+// ponytail: math box halves X/Z, so double Y. Side-on tank height/length is 0.35; scale 1 is squashed flat.
 export const MODEL_Y_SCALE = 2;
 
 export const BG = {
-  phase: 0,       // ponytail: landscape scroll offset (AVG units) so the moon is just left of the reticle at facing 0
-  yOffset: 0,     // ponytail: landscape baseline vs horizon, AVG units
+  phase: 512,     // ponytail: facing 0, ROM parks section 0 on the left half (view center is landscape x=512). Moon centroid x≈488 then sits ~24 units left of the reticle.
+  yOffset: 0,     // ponytail: silhouette verts already touch y=0, the horizon the ROM beam starts on. No baseline shift.
   volcanoX: 1544, // ponytail: crater x in landscape units, found in Task 12
   volcanoY: 120,
 };
