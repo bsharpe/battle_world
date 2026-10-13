@@ -1,0 +1,10 @@
+{
+  "name": "battlezone",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "extract": "node tools/extract-rom.mjs",
+    "serve": "python3 -m http.server 8080"
+  }
+}
