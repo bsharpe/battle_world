@@ -106,7 +106,9 @@ export function drawWorld(buf, g, cam, t = 0) {
     drawModel(buf, cam, SHAPES[ENEMY_SHAPES[e.kind]], e.x, e.y, e.z, e.facing);
     if (e.kind !== 'missile') {
       // Only the tread end facing the viewer is drawn; frames advance with distance travelled (reverse when backing up).
-      const rel = Math.atan2(cam.x - e.x, cam.z - e.z) - e.facing;
+      // delta, not raw subtraction: the short wrap across ±32768 is the near end.
+      const [dx, dz] = delta(e.x, e.z, cam.x, cam.z);
+      const rel = Math.atan2(dx, dz) - e.facing;
       const rear = Math.cos(rel) < 0;
       const frame = ((Math.floor(e.treadPhase / 120) % 4) + 4) % 4;
       drawModel(buf, cam, SHAPES[`tread${(rear ? 0 : 4) + frame}`], e.x, e.y, e.z, e.facing);
