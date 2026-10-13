@@ -96,3 +96,23 @@ export function drawHud(buf, g, h, highScore, t) {
   else VG.cracks.slice(0, Math.floor(p.deadFor * 24) + 1).forEach((segs) => drawAvg(buf, segs));
   if (g.over) say(buf, 'GAME OVER');
 }
+
+export function drawAttractText(buf, t, scores) {
+  if (Math.floor(t / 6) % 2 === 1) {
+    say(buf, 'HIGH SCORES');
+    scores.forEach((s, i) => drawText(buf, `${String(s.score).padStart(7)}  ${s.initials}`, -120, 120 - i * 20));
+  } else if (Math.floor(t * 2) % 2 === 0) say(buf, 'PRESS START');
+  say(buf, 'BONUS TANK AT', 'BONUS TANK AT 15000 AND 100000');
+  say(buf, '(C)(P)');
+}
+
+export function drawInitials(buf, entry, letters, t) {
+  say(buf, 'GREAT SCORE');
+  say(buf, 'ENTER YOUR INITIALS');
+  say(buf, 'CHANGE LETTER');
+  say(buf, 'SELECT LETTER');
+  entry.letters.forEach((li, i) => {
+    if (i === entry.pos && Math.floor(t * 4) % 2) return;
+    drawText(buf, letters[li], -36 + i * 36, -40, 1, 1);
+  });
+}
