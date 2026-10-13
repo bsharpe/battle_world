@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { radarBlip, enemyDirection, enemyInRange, onTarget, sweepCrossed } from '../src/render/hud.js';
+import { radarBlip, enemyDirection, enemyInRange, onTarget, sweepCrossed, drawHud } from '../src/render/hud.js';
+import { VIEW } from '../src/config.js';
+import { STRINGS } from '../src/data/rom.js';
 
 const P = { x: 0, z: 0, facing: 0 };
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-6, `${a} != ${b}`);
@@ -57,4 +59,30 @@ test('radar sweep crossing detection', () => {
   assert.equal(sweepCrossed(0, 0.1, 0.05), true);
   assert.equal(sweepCrossed(0, 0.1, 0.2), false);
   assert.equal(sweepCrossed(3.1, -3.1, Math.PI), true); // across the ±π seam
+});
+
+// Half-size glyphs advance 12 AVG units. Digit cells are 8 wide, so the field length is the right edge of the last glyph.
+function drawnTextLength(lines, entry) {
+  const S = VIEW.height / 768, CX = VIEW.width / 2, CY = VIEW.height / 2;
+  let maxX = -Infinity;
+  for (const [x0, y0, x1, y1] of lines) {
+    for (const [sx, sy] of [[x0, y0], [x1, y1]]) {
+      const ax = (sx - CX) / S, ay = (CY - sy) / S;
+      if (ay >= entry.y - 0.5 && ay <= entry.y + 12.5 && ax >= entry.x - 1) maxX = Math.max(maxX, ax);
+    }
+  }
+  return Math.round((maxX - entry.x - 8) / 12 + 1);
+}
+
+test('drawHud score text matches the ROM field length', () => {
+  const lines = [];
+  const buf = { push: (...seg) => lines.push(seg) };
+  drawHud(buf, {
+    score: 9000, lives: 0, blockedFor: 0, over: false, enemy: null,
+    player: { alive: true, deadFor: 0 },
+  }, { sweep: 0, blip: null, blipGlow: 0 }, 9000, 0);
+  const score = STRINGS.find((e) => e.text.startsWith('SCORE') && !e.text.startsWith('HIGH'));
+  const high = STRINGS.find((e) => e.text.startsWith('HIGH SCORE '));
+  assert.equal(drawnTextLength(lines, score), score.text.length);
+  assert.equal(drawnTextLength(lines, high), high.text.length);
 });

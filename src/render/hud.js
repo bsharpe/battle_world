@@ -77,7 +77,7 @@ export function updateHudState(h, g, dt) {
 
 export function drawHud(buf, g, h, highScore, t) {
   const p = g.player, blinkOn = Math.floor(t * MESSAGES.blinkHz * 2) % 2 === 0;
-  say(buf, 'SCORE', `SCORE ${String(g.score).padStart(8)}`);
+  say(buf, 'SCORE', `SCORE${String(g.score).padStart(8)}`);
   say(buf, 'HIGH SCORE ', `HIGH SCORE ${String(highScore).padStart(8)}`);
   for (let i = 0; i < g.lives; i++) drawAvg(buf, VG.life.segs, HUD.livesX + i * HUD.livesSpacing, HUD.livesY);
 
