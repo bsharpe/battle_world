@@ -20,6 +20,14 @@ const OBSTACLE_SHAPES = { 0: 'narrowPyramid', 1: 'tallBox', 12: 'widePyramid', 1
 const ENEMY_SHAPES = { tank: 'tank', super: 'superTank', missile: 'missile' };
 const LAND_PX = VIEW.focal / (4096 / TAU); // px per AVG unit; one full turn matches the 3D camera
 
+const centroidXZ = (shape) => {
+  const n = shape.verts.length;
+  return [shape.verts.reduce((s, v) => s + v[0], 0) / n, shape.verts.reduce((s, v) => s + v[2], 0) / n];
+};
+const [DISH_X, DISH_Z] = centroidXZ(SHAPES.radarDish);
+const DISH = { verts: SHAPES.radarDish.verts.map(([x, y, z]) => [x - DISH_X, y, z - DISH_Z]), segs: SHAPES.radarDish.segs };
+const volcano = { particles: [], timer: 0 };
+
 export function makeCamera(x, z, facing, jolt = 0) {
   return { x, z, facing, sin: Math.sin(facing), cos: Math.cos(facing), horizonY: VIEW.height / 2 + jolt * VIEW.joltPx };
 }
@@ -72,12 +80,42 @@ export function drawBackground(buf, cam, dt) {
       buf.push(W / 2 + (base + x0) * LAND_PX, hy - (y0 + BG.yOffset) * LAND_PX, W / 2 + (base + x1) * LAND_PX, hy - (y1 + BG.yOffset) * LAND_PX, inten / 12);
     }
   });
+  // Volcano: up to 5 ballistic particles thrown from the crater (ROM UpdateVolcano).
+  volcano.timer -= dt;
+  if (volcano.timer <= 0 && volcano.particles.length < 5) {
+    volcano.particles.push({ x: 0, y: 0, vx: (Math.random() - 0.5) * 60, vy: 80 + Math.random() * 60 });
+    volcano.timer = 0.25 + Math.random() * 0.3;
+  }
+  volcano.particles = volcano.particles.filter((p) => {
+    p.vy -= 120 * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    if (p.y < 0) return false;
+    let base = (((BG.volcanoX + p.x - scroll) % 4096) + 4096) % 4096;
+    if (base > 2048) base -= 4096;
+    const px = W / 2 + base * LAND_PX, py = hy - (BG.volcanoY + BG.yOffset + p.y) * LAND_PX;
+    buf.push(px, py, px, py, 1);
+    return true;
+  });
 }
 
-export function drawWorld(buf, g, cam) {
+export function drawWorld(buf, g, cam, t = 0) {
   for (const o of g.obstacles) drawModel(buf, cam, SHAPES[OBSTACLE_SHAPES[o.type]], o.x, 0, o.z, o.facing);
   const e = g.enemy;
-  if (e) drawModel(buf, cam, SHAPES[ENEMY_SHAPES[e.kind]], e.x, e.y, e.z, e.facing);
+  if (e) {
+    drawModel(buf, cam, SHAPES[ENEMY_SHAPES[e.kind]], e.x, e.y, e.z, e.facing);
+    if (e.kind !== 'missile') {
+      // Only the tread end facing the viewer is drawn; frames advance with distance travelled (reverse when backing up).
+      const rel = Math.atan2(cam.x - e.x, cam.z - e.z) - e.facing;
+      const rear = Math.cos(rel) < 0;
+      const frame = ((Math.floor(e.treadPhase / 120) % 4) + 4) % 4;
+      drawModel(buf, cam, SHAPES[`tread${(rear ? 0 : 4) + frame}`], e.x, e.y, e.z, e.facing);
+    }
+    if (e.kind === 'tank') {
+      const s = Math.sin(e.facing), c = Math.cos(e.facing);
+      drawModel(buf, cam, DISH, e.x + DISH_X * c + DISH_Z * s, e.y, e.z - DISH_X * s + DISH_Z * c, e.facing + t * 3);
+    }
+  }
   const s = g.saucer;
   if (s) drawModel(buf, cam, SHAPES.saucer, s.x, s.y, s.z, s.spin, s.dying > 0 ? s.dying / 2 : 1);
   for (const sh of g.shells) drawModel(buf, cam, SHAPES.shell, sh.x, 0, sh.z, Math.atan2(sh.vx, sh.vz));

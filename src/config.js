@@ -20,8 +20,8 @@ export const MODEL_Y_SCALE = 2;
 export const BG = {
   phase: 512,     // ponytail: facing 0, ROM parks section 0 on the left half (view center is landscape x=512). Moon centroid x≈488 then sits ~24 units left of the reticle.
   yOffset: 0,     // ponytail: silhouette verts already touch y=0, the horizon the ROM beam starts on. No baseline shift.
-  volcanoX: 1544, // ponytail: crater x in landscape units, found in Task 12
-  volcanoY: 120,
+  volcanoX: 1088, // ponytail: lowest landscape vertex in [912, 2176), the ROM volcano window before phase
+  volcanoY: 0,    // ponytail: that vertex is on the horizon; the scan keeps the first y minimum
 };
 
 // ponytail: DrawScoreLives beams to (+128, +360). The life VJSR does not restore the beam; it ends at x=+57.
