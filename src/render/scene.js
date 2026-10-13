@@ -1,6 +1,6 @@
 import { SHAPES, VG } from '../data/rom.js';
 import { VIEW, MODEL_Y_SCALE, BG } from '../config.js';
-import { TAU, wrapCoord } from '../math.js';
+import { TAU, wrapCoord, delta } from '../math.js';
 
 export function createLineBuffer(max = 32768) {
   const data = new Float32Array(max * 5);
@@ -47,10 +47,16 @@ export function inView(cam, x, z) {
 }
 
 export function drawModel(buf, cam, shape, x, y, z, facing, bright = 1) {
-  const cz = toView(cam, x, 0, z)[2];
-  if (cz < -4000 || cz > VIEW.far) return;
+  // Wrap the origin once. Local offsets are added in view space so a mesh
+  // that straddles ±32768 is not torn into a 65536-unit edge.
+  const [dx, dz] = delta(cam.x, cam.z, x, z);
+  const ox = dx * cam.cos - dz * cam.sin, oz = dx * cam.sin + dz * cam.cos;
+  if (oz < -4000 || oz > VIEW.far) return;
   const s = Math.sin(facing), c = Math.cos(facing);
-  const v = shape.verts.map(([lx, ly, lz]) => toView(cam, x + lx * c + lz * s, y + ly * MODEL_Y_SCALE, z - lx * s + lz * c));
+  const v = shape.verts.map(([lx, ly, lz]) => {
+    const lxw = lx * c + lz * s, lzw = -lx * s + lz * c;
+    return [ox + lxw * cam.cos - lzw * cam.sin, y + ly * MODEL_Y_SCALE, oz + lxw * cam.sin + lzw * cam.cos];
+  });
   for (const [i, j, inten] of shape.segs) segment(buf, cam, v[i], v[j], (bright * inten) / VIEW.modelIntensity);
 }
 
