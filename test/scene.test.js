@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SHAPES } from '../src/data/rom.js';
 import { VIEW } from '../src/config.js';
 import { delta } from '../src/math.js';
-import { createLineBuffer, makeCamera, drawModel, drawWorld } from '../src/render/scene.js';
+import { createLineBuffer, makeCamera, drawModel, drawWorld, drawBackground } from '../src/render/scene.js';
 
 // A segment crosses the view when it covers the full width or height and still
 // meets the rectangle. A short edge that merely sits inside does not.
@@ -111,4 +111,26 @@ test('a super tank does not wear the slow-tank treads', () => {
   drawWorld(tankWorld, field('tank'), cam);
   const tankDrawn = new Set(segKeys(tankWorld));
   assert.ok(rearKeys.every((k) => tankDrawn.has(k)), 'the slow tank lost its near treads');
+});
+
+test('volcano particles are wide bloom dots, not hairline points', () => {
+  // A zero-length stroke at the line sigma is a speck. The half-res bloom only
+  // spreads that speck by a few pixels, so the rocks stay invisible. The dot
+  // pass is the wide gaussian the bloom blur can actually lift.
+  const buf = createLineBuffer();
+  drawBackground(buf, makeCamera(0, 0, 0), 0.05);
+  assert.ok(buf.dotCount > 0, 'volcano particles missed the bloom dot pass');
+  for (let i = 0; i < buf.count; i++) {
+    const o = i * 5;
+    assert.ok(
+      buf.data[o] !== buf.data[o + 2] || buf.data[o + 1] !== buf.data[o + 3],
+      'a volcano particle was stroked as a hairline point',
+    );
+  }
+  for (let i = 0; i < buf.dotCount; i++) {
+    const o = i * 5;
+    assert.equal(buf.dots[o], buf.dots[o + 2]);
+    assert.equal(buf.dots[o + 1], buf.dots[o + 3]);
+    assert.ok(buf.dots[o + 4] >= 2, 'particle intensity is too low for the bloom to lift');
+  }
 });

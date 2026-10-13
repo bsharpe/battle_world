@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { treadsFromArcade, createInput } from '../src/input.js';
+import { PHOSPHOR, nextPhosphor } from '../src/config.js';
 import { createGame, step } from '../src/game.js';
 
 function fakeWindow() {
@@ -34,6 +35,39 @@ test('holding fire produces one shot, not a stream', () => {
   input.read();
   win.press('Space');
   assert.equal(input.read().fire, true);
+});
+
+test('C cycles the field phosphor once per press, green then amber', () => {
+  assert.equal(nextPhosphor('green'), 'amber');
+  assert.equal(nextPhosphor('amber'), 'green');
+  assert.ok(PHOSPHOR.green[1] > PHOSPHOR.green[0], 'green phosphor is green');
+  assert.ok(PHOSPHOR.amber[0] > PHOSPHOR.amber[1] && PHOSPHOR.amber[1] > PHOSPHOR.amber[2], 'amber phosphor is orange');
+  const win = fakeWindow(), input = createInput(win);
+  win.press('KeyC');
+  assert.equal(input.read().color, true);
+  assert.equal(input.read().color, false);
+});
+
+test('letter keys are typed once, and on the initials screen they are not control shortcuts', () => {
+  const win = fakeWindow(), input = createInput(win);
+  win.press('KeyB');
+  assert.equal(input.read().typed, 'B');
+  assert.equal(input.read().typed, '');
+  win.release('KeyB');
+  win.press('Space');
+  win.press('Backspace');
+  const row = input.read();
+  assert.equal(row.typed, ' \b');
+  assert.equal(row.fire, true);
+  win.release('Space');
+  win.release('Backspace');
+  input.read();
+  win.press('KeyT');
+  win.press('KeyC');
+  const typing = input.read({ typing: true });
+  assert.equal(typing.typed, 'TC');
+  assert.equal(typing.color, false);
+  assert.equal(input.mode, 'arcade');
 });
 
 test('T toggles authentic tread mode where Q/L drive each tread', () => {

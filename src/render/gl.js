@@ -63,20 +63,20 @@ void main() {
 const OUT_FS = `#version 300 es
 precision highp float;
 in vec2 uv;
-uniform sampler2D glow, bloom;
+uniform sampler2D glow, bloom, text;
 uniform float bloomK, redLine;
 uniform vec2 res;
 uniform vec3 green, red;
 out vec4 o;
 void main() {
-  float v = texture(glow, uv).r + texture(bloom, uv).r * bloomK;
+  float v = texture(glow, uv).r + texture(bloom, uv).r * bloomK + texture(text, uv).r;
   vec3 tint = (1.0 - uv.y) * res.y < redLine ? red : green;
   o = vec4(1.0 - exp(-v * tint * 2.0), 1.0);
 }`;
 
 export function createVectorRenderer(canvas, opts = {}) {
   const o = {
-    lineHalfWidth: 5, sigma: 1.4, persistence: 0.035, bloom: 1.6, redLinePx: 216,
+    lineHalfWidth: 2.5, sigma: 0.85, persistence: 0.035, bloom: 0.25, redLinePx: 216,
     green: [0.25, 1.0, 0.35], red: [1.0, 0.22, 0.18], maxLines: 32768, ...opts,
   };
   const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
@@ -156,30 +156,43 @@ export function createVectorRenderer(canvas, opts = {}) {
   };
 
   return {
+    setPhosphor(rgb) { o.green = rgb; },
+    setRedLine(px) { o.redLinePx = px; },
     draw(buf, dt) {
-      const n = Math.min(buf.count, o.maxLines);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, fresh.fb);
-      gl.viewport(0, 0, W, H);
-      gl.clearColor(0, 0, 0, 1);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.useProgram(lines.p);
-      gl.uniform2f(lines.u.res, W, H);
-      gl.uniform1f(lines.u.halfW, o.lineHalfWidth);
-      gl.uniform1f(lines.u.sigma, o.sigma);
-      gl.bindVertexArray(lineVao);
-      gl.bindBuffer(gl.ARRAY_BUFFER, inst);
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, buf.data, 0, n * 5);
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE);
-      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, n);
-      gl.disable(gl.BLEND);
+      const stroke = (src, count, halfW, sigma, clear) => {
+        const n = Math.min(count, o.maxLines);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fresh.fb);
+        gl.viewport(0, 0, W, H);
+        if (clear) {
+          gl.clearColor(0, 0, 0, 1);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+        }
+        if (!n) return;
+        gl.useProgram(lines.p);
+        gl.uniform2f(lines.u.res, W, H);
+        gl.uniform1f(lines.u.halfW, halfW);
+        gl.uniform1f(lines.u.sigma, sigma);
+        gl.bindVertexArray(lineVao);
+        gl.bindBuffer(gl.ARRAY_BUFFER, inst);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, src, 0, n * 5);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE);
+        gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, n);
+        gl.disable(gl.BLEND);
+      };
+      stroke(buf.data, buf.count, o.lineHalfWidth, o.sigma, true);
+      // A point at the frame sigma is a few pixels, and the half-res bloom only spreads it by about six.
+      // halfW stays past 3 sigma so the disk is the gaussian, not a clipped box.
+      stroke(buf.dots, buf.dotCount, 22, 6.5, false);
 
       const prev = glow[cur], next = glow[1 - cur];
       cur = 1 - cur;
       fullscreen(decay, next, [['prev', prev], ['fresh', fresh]], (u) => gl.uniform1f(u.decay, Math.exp(-dt / o.persistence)));
       fullscreen(blur, halfA, [['src', next]], (u) => gl.uniform2f(u.dir, 2 / W, 0));
       fullscreen(blur, halfB, [['src', halfA]], (u) => gl.uniform2f(u.dir, 0, 2 / H));
-      fullscreen(out, null, [['glow', next], ['bloom', halfB]], (u) => {
+      // After the bloom source is taken. A narrow core only: no halo on glyphs or the wordmark.
+      stroke(buf.text, buf.textCount, 1.4, 0.4, true);
+      fullscreen(out, null, [['glow', next], ['bloom', halfB], ['text', fresh]], (u) => {
         gl.uniform1f(u.bloomK, o.bloom);
         gl.uniform1f(u.redLine, o.redLinePx);
         gl.uniform2f(u.res, W, H);

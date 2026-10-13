@@ -112,16 +112,8 @@ export function updateSaucer(g, dt) {
     const b = g.rng() * TAU, d = 6000 + g.rng() * 14000;
     g.saucer = {
       x: wrapCoord(g.player.x + Math.sin(b) * d), z: wrapCoord(g.player.z + Math.cos(b) * d),
-      y: 0, vx: 0, vz: 0, retarget: 0, spin: 0, dying: 0,
+      y: 0, vx: 0, vz: 0, retarget: 0, spin: 0,
     };
-    return;
-  }
-  if (s.dying > 0) {
-    s.dying -= dt;
-    if (s.dying <= 0) {
-      g.saucer = null;
-      g.saucerDelay = g.rng() * cfg.delayMax;
-    }
     return;
   }
   s.retarget -= dt;

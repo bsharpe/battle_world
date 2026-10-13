@@ -7,6 +7,32 @@ export function rankFor(table, score) {
   return i === -1 ? (table.length < 10 && score > 0 ? table.length : -1) : i;
 }
 
+// Stick turn still walks the alphabet. Typed characters spell the name instead.
+export function editInitials(entry, inp, letters) {
+  if (inp.start) return true;
+  if (inp.typed) {
+    for (const ch of inp.typed) {
+      if (ch === '\b') {
+        entry.pos = Math.max(0, entry.pos - 1);
+        continue;
+      }
+      const i = letters.indexOf(ch);
+      if (i < 0 || entry.pos > 2) continue;
+      entry.letters[entry.pos] = i;
+      if (++entry.pos === 3) return true;
+    }
+    entry.armed = false;
+    return false;
+  }
+  const turn = (inp.left - inp.right) / 2;
+  if (Math.abs(turn) < 0.5) entry.armed = true;
+  else if (entry.armed) {
+    entry.armed = false;
+    entry.letters[entry.pos] = (entry.letters[entry.pos] + Math.sign(turn) + letters.length) % letters.length;
+  }
+  return !!(inp.fire && ++entry.pos === 3);
+}
+
 export function insertScore(table, score, initials) {
   const i = rankFor(table, score);
   return i < 0 ? table : [...table.slice(0, i), { score, initials }, ...table.slice(i)].slice(0, 10);

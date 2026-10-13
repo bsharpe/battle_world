@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { radarBlip, enemyDirection, enemyInRange, onTarget, sweepCrossed, drawHud } from '../src/render/hud.js';
+import { radarBlip, enemyDirection, enemyInRange, onTarget, sweepCrossed, drawHud, drawText, drawTitle } from '../src/render/hud.js';
 import { VIEW } from '../src/config.js';
 import { STRINGS } from '../src/data/rom.js';
 
@@ -74,9 +74,72 @@ function drawnTextLength(lines, entry) {
   return Math.round((maxX - entry.x - 8) / 12 + 1);
 }
 
+test('a radar blip is a point on the dot channel, not a thin HUD stroke', () => {
+  const thin = [], dots = [];
+  const buf = {
+    push: (...seg) => thin.push(seg),
+    pushText: (...seg) => thin.push(seg),
+    pushDot: (...seg) => dots.push(seg),
+  };
+  drawHud(buf, {
+    score: 0, lives: 0, blockedFor: 0, over: false,
+    enemy: { y: 0 }, player: { alive: true, deadFor: 0 },
+  }, { sweep: Math.PI, blip: [0, 12], blipGlow: 0 }, 0, 0);
+  assert.equal(dots.length, 1);
+  const [x0, y0, x1, y1, i] = dots[0];
+  assert.equal(x0, x1);
+  assert.equal(y0, y1);
+  assert.ok(Math.abs(i - 4 / 12) < 1e-6, `resting blip intensity ${i}`);
+  assert.equal(thin.some((s) => s[0] === x0 && s[1] === y0 && s[2] === x0 && s[3] === y0), false);
+});
+
+test('GAME OVER is twice the size of the other HUD messages', () => {
+  // HUD copy is the ROM half-size (glyph height 12). Game over is the full 24-unit glyph.
+  const lines = [];
+  const buf = { push() {}, pushText: (...seg) => lines.push(seg) };
+  drawHud(buf, {
+    score: 0, lives: 0, blockedFor: 0, over: true, enemy: null,
+    player: { alive: false, deadFor: 1 },
+  }, { sweep: 0, blip: null, blipGlow: 0 }, 0, 0);
+  const entry = STRINGS.find((e) => e.text === 'GAME OVER');
+  const S = VIEW.height / 768, CX = VIEW.width / 2, CY = VIEW.height / 2;
+  let minY = Infinity, maxY = -Infinity, maxX = -Infinity;
+  for (const [x0, y0, x1, y1] of lines) {
+    for (const [sx, sy] of [[x0, y0], [x1, y1]]) {
+      const ax = (sx - CX) / S, ay = (CY - sy) / S;
+      if (ax < entry.x - 1 || ay < entry.y - 1 || ay > entry.y + 30) continue;
+      minY = Math.min(minY, ay);
+      maxY = Math.max(maxY, ay);
+      maxX = Math.max(maxX, ax);
+    }
+  }
+  assert.ok(Math.abs(maxY - minY - 24) < 0.5, `height ${maxY - minY}`);
+  assert.ok(Math.abs(maxX - entry.x - (8 * 24 + 16)) < 0.5, `reach ${maxX - entry.x}`);
+});
+
+test('the attract title reads BATTLE WORLD in the game font', () => {
+  // The Atari logotype spelled BATTLE ZONE. The wordmark is two centered game-font lines in that top band.
+  const scale = 3, gap = 10, top = 40;
+  const S = VIEW.height / 768;
+  const oy1 = (VIEW.height / 2 - top) / S - 24 * scale;
+  const oy2 = oy1 - 24 * scale - gap;
+  const lineX = (text) => -((text.length - 1) * 24 + 16) * scale / 2;
+  const expect = [];
+  const exp = { push() {}, pushText: (...seg) => expect.push(seg) };
+  drawText(exp, 'BATTLE', lineX('BATTLE'), oy1, 1, scale);
+  drawText(exp, 'WORLD', lineX('WORLD'), oy2, 1, scale);
+  const lines = [];
+  drawTitle({ push() {}, pushText: (...seg) => lines.push(seg) });
+  assert.deepEqual(lines, expect);
+  const CX = VIEW.width / 2;
+  const xs = lines.flatMap(([x0, , x1]) => [x0, x1]);
+  const mid = (Math.min(...xs) + Math.max(...xs)) / 2;
+  assert.ok(Math.abs(mid - CX) < 1, `title is off center by ${mid - CX}`);
+});
+
 test('drawHud score text matches the ROM field length', () => {
   const lines = [];
-  const buf = { push: (...seg) => lines.push(seg) };
+  const buf = { push: (...seg) => lines.push(seg), pushText: (...seg) => lines.push(seg) };
   drawHud(buf, {
     score: 9000, lives: 0, blockedFor: 0, over: false, enemy: null,
     player: { alive: true, deadFor: 0 },

@@ -88,6 +88,22 @@ test('a tall box stops shells; a short box lets them pass over', () => {
   assert.ok(short.shells[0].z > 6000);
 });
 
+test('shooting the saucer scores 5000 and blows it into flying wreckage', () => {
+  const g = quiet();
+  g.score = 2000;
+  g.saucerDelay = 99;
+  g.saucer = { x: 0, z: 6000, y: 0, vx: 0, vz: 0, retarget: 100, spin: 0 };
+  step(g, FIRE, 1 / 60);
+  const events = run(g, IDLE, 0.7);
+  assert.equal(g.score, 7000);
+  assert.equal(g.saucer, null);
+  assert.ok(events.some((e) => e.type === 'saucerHit'));
+  const shards = g.debris.filter((d) => !d.burst);
+  assert.ok(shards.length >= 4, 'the saucer should throw wreckage, not fade in place');
+  const xs = shards.map((d) => d.x);
+  assert.ok(Math.max(...xs) - Math.min(...xs) > 200, 'wreckage should fly apart');
+});
+
 test('shooting a tank scores 1000 and clears the enemy slot', () => {
   const g = quiet();
   g.enemy = makeEnemy('tank', 0, 6000, Math.PI);

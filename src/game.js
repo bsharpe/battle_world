@@ -10,7 +10,10 @@ const CHUNKS = {
   tank: ['chunk10', 'chunk11', 'chunk12', 'chunk13', 'chunk14', 'chunk15'],
   super: ['chunk10', 'chunk11', 'chunk12', 'chunk14', 'chunk15'],
   missile: ['chunk18', 'chunk19', 'chunk1a', 'chunk1b', 'chunk1c', 'chunk1d'],
+  // Same small wedge four times: the saucer has no wreck shape of its own.
+  saucer: ['chunk13', 'chunk13', 'chunk13', 'chunk13'],
 };
+const BURST_TIME = 0.48;
 
 export function createGame({ rng = Math.random, obstacles = OBSTACLES, lives = RULES.lives } = {}) {
   return {
@@ -116,10 +119,8 @@ function updateShells(g, dt) {
           return false;
         }
         const u = g.saucer;
-        if (u && !(u.dying > 0) && dist(s.x, s.z, u.x, u.z) < ENEMY.hitRadius) {
-          u.dying = ENEMY.saucer.fade;
-          addScore(g, ENEMY.saucer.score);
-          g.events.push({ type: 'saucerHit' });
+        if (u && dist(s.x, s.z, u.x, u.z) < ENEMY.hitRadius) {
+          destroySaucer(g, u);
           return false;
         }
       } else if (g.player.alive && dist(s.x, s.z, g.player.x, g.player.z) < PLAYER.hitRadius) {
@@ -129,6 +130,15 @@ function updateShells(g, dt) {
     }
     return true;
   });
+}
+
+function destroySaucer(g, u) {
+  spawnDebris(g, { kind: 'saucer', x: u.x, y: u.y, z: u.z });
+  g.debris.push({ burst: true, frame: 0, x: u.x, y: u.y, z: u.z, life: BURST_TIME });
+  addScore(g, ENEMY.saucer.score);
+  g.events.push({ type: 'saucerHit' });
+  g.saucer = null;
+  g.saucerDelay = g.rng() * ENEMY.saucer.delayMax;
 }
 
 function destroyEnemy(g) {
@@ -188,6 +198,10 @@ function spawnDebris(g, e) {
 function updateDebris(g, dt) {
   g.debris = g.debris.filter((d) => {
     d.life -= dt;
+    if (d.burst) {
+      d.frame = Math.min(7, Math.floor((BURST_TIME - Math.max(d.life, 0)) / (BURST_TIME / 8)));
+      return d.life > 0;
+    }
     d.vy -= GRAVITY * dt;
     d.x = wrapCoord(d.x + d.vx * dt);
     d.y = Math.max(0, d.y + d.vy * dt);

@@ -20,9 +20,21 @@ export const MODEL_Y_SCALE = 2;
 export const BG = {
   phase: 512,     // ponytail: facing 0, ROM parks section 0 on the left half (view center is landscape x=512). Moon centroid x≈488 then sits ~24 units left of the reticle.
   yOffset: 0,     // ponytail: silhouette verts already touch y=0, the horizon the ROM beam starts on. No baseline shift.
-  volcanoX: 2048, // with phase 512, the y=32 notch nearest the center of the arcade window (volcano visible ~80°–191°; moon still ahead at facing 0)
-  volcanoY: 32,   // height of that notch, so particles leave the silhouette rather than the horizon
+  volcanoX: 3067, // ponytail: lowest point of the cone's crater rim (3056:96, 3059:89, 3064:94, 3067:88, 3072:96)
+  volcanoY: 88,   // ponytail: that rim, so the rocks leave the crater instead of a notch elsewhere on the range
 };
+
+// Field phosphor. The red overlay stays red. A later disco mode needs a color per
+// line; it is not another entry here, because one vec3 tints the whole field.
+export const PHOSPHOR = {
+  green: [0.25, 1.0, 0.35],
+  amber: [1.0, 0.55, 0.04], // ponytail: amber vector phosphor, hotter than the red overlay
+};
+
+export function nextPhosphor(name) {
+  const names = Object.keys(PHOSPHOR);
+  return names[(names.indexOf(name) + 1) % names.length];
+}
 
 // ponytail: DrawScoreLives beams to (+128, +360). The life VJSR does not restore the beam; it ends at x=+57.
 export const HUD = { livesX: 128, livesY: 360, livesSpacing: 57 };
@@ -53,7 +65,7 @@ export const ENEMY = {
     zigStopDist: 6400, // ponytail: ROM formula depends on score; fixed until play-tested
     score: 2000,
   },
-  saucer: { maxVel: 255 * TICK, retargetMax: 8, delayMax: 16, minScore: 2000, fade: 2, score: 5000 },
+  saucer: { maxVel: 255 * TICK, retargetMax: 8, delayMax: 16, minScore: 2000, score: 5000 },
   aimTolerance: 2 * STEP,
   noFireFor: 2,
   alwaysFireAfter: 255 / TICK,

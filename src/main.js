@@ -1,17 +1,26 @@
 import { createVectorRenderer } from './render/gl.js';
-import { createLineBuffer, makeCamera, drawBackground, drawWorld, drawModel, inView } from './render/scene.js';
-import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText } from './render/hud.js';
+import { createLineBuffer, makeCamera, drawBackground, drawWorld, drawModel, inView } from './render/scene.js?v=11';
+import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle } from './render/hud.js?v=12';
 import { createGame, step } from './game.js';
 import { createInput } from './input.js';
 import { createAudio } from './audio.js';
-import { loadScores, saveScores, rankFor, insertScore } from './highscores.js';
+import { loadScores, saveScores, rankFor, insertScore, editInitials } from './highscores.js';
 import { mulberry32 } from './math.js';
-import { MODEL_Y_SCALE } from './config.js';
+import { PHOSPHOR, nextPhosphor, VIEW } from './config.js';
 import { SHAPES } from './data/rom.js';
 
 const params = new URLSearchParams(location.search);
 const seed = params.has('seed') ? Number(params.get('seed')) : (Math.random() * 2 ** 32) >>> 0;
 const canvas = document.getElementById('screen');
+// One device pixel per canvas pixel. CSS used to fit the 1920×1080 buffer to the
+// window, and that resample blurred the lines on top of the phosphor glow.
+const placeCanvas = () => {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = `${canvas.width / dpr}px`;
+  canvas.style.height = `${canvas.height / dpr}px`;
+};
+placeCanvas();
+addEventListener('resize', placeCanvas);
 let renderer;
 try {
   renderer = createVectorRenderer(canvas);
@@ -19,22 +28,27 @@ try {
   document.getElementById('error').textContent = `This game needs WebGL2 (${err.message})`;
   throw err;
 }
+const PHOSPHOR_KEY = 'battlezone.phosphor';
+function loadPhosphor() {
+  const q = params.get('color');
+  if (PHOSPHOR[q]) return q;
+  try {
+    const saved = localStorage.getItem(PHOSPHOR_KEY);
+    if (PHOSPHOR[saved]) return saved;
+  } catch { /* private mode, or Node without a storage file */ }
+  return 'green';
+}
+let phosphor = loadPhosphor();
+renderer.setPhosphor(PHOSPHOR[phosphor]);
 const buf = createLineBuffer(), input = createInput(), audio = createAudio();
 for (const ev of ['keydown', 'pointerdown']) addEventListener(ev, () => audio.unlock());
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ ';
-// Letter height is stored on Z, so the brief's yaw leaves the title flat on the horizon.
-// Swap that axis onto Y (travel axis). Divide by MODEL_Y_SCALE: Z is already in the doubled
-// X/Z space that scale matches. Flip X because facing + π would otherwise mirror the word.
-// logoTtle/logoZone strokes are stored at intensity 0; the ROM overrides that while drawing the logo.
-const LOGO = [SHAPES.logoBa, SHAPES.logoTtle, SHAPES.logoZone].map((shape) => ({
-  verts: shape.verts.map(([x, y, z]) => [-x, z / MODEL_Y_SCALE, -y]),
-  segs: shape.segs.map(([a, b, i]) => [a, b, i || 30]),
-}));
 const attractWorld = createGame(); // never stepped: just the obstacle field for the backdrop
 const app = {
   mode: params.get('view') === 'shapes' ? 'shapes' : 'attract',
   scores: loadScores(), game: null, hud: createHudState(), t: 0, modeT: 0, overFor: 0, entry: null, shape: 0, games: 0,
+  phosphor,
 };
 window.__bz = app; // debug handle for browser verification
 
@@ -46,8 +60,7 @@ function frameAttract(inp, dt) {
   const cam = makeCamera(0, 0, app.modeT * 0.15);
   drawBackground(buf, cam, dt);
   drawWorld(buf, attractWorld, cam, app.t);
-  const d = Math.max(9000, 30000 - app.modeT * 8000); // start at 30000: a start past ±32768 wraps behind the camera and the title pops in
-  for (const shape of LOGO) drawModel(buf, cam, shape, Math.sin(cam.facing) * d, 0, Math.cos(cam.facing) * d, cam.facing + Math.PI);
+  drawTitle(buf);
   drawAttractText(buf, app.modeT, app.scores);
   if (inp.start) {
     app.game = createGame({ rng: mulberry32(seed + app.games++) });
@@ -66,7 +79,7 @@ function framePlay(inp, dt) {
   audio.update({
     on: !g.over,
     engine: g.player.alive ? (Math.abs(inp.left) + Math.abs(inp.right)) / 2 : 0,
-    saucer: !!g.saucer && !(g.saucer.dying > 0) && inView(cam, g.saucer.x, g.saucer.z),
+    saucer: !!g.saucer && inView(cam, g.saucer.x, g.saucer.z),
     missile: g.enemy?.kind === 'missile',
   });
   drawBackground(buf, cam, dt);
@@ -82,13 +95,8 @@ function framePlay(inp, dt) {
 
 function frameInitials(inp) {
   silence();
-  const e = app.entry, turn = (inp.left - inp.right) / 2;
-  if (Math.abs(turn) < 0.5) e.armed = true;
-  else if (e.armed) {
-    e.armed = false;
-    e.letters[e.pos] = (e.letters[e.pos] + Math.sign(turn) + LETTERS.length) % LETTERS.length;
-  }
-  if (inp.fire && ++e.pos === 3) {
+  const e = app.entry;
+  if (editInitials(e, inp, LETTERS)) {
     app.scores = insertScore(app.scores, app.game.score, e.letters.map((i) => LETTERS[i]).join('').trimEnd());
     saveScores(app.scores);
     setMode('attract');
@@ -113,10 +121,18 @@ requestAnimationFrame(function frame(now) {
   last = now;
   app.t += dt;
   app.modeT += dt;
-  const inp = input.read();
+  const inp = input.read({ typing: app.mode === 'initials' });
+  if (inp.color) {
+    phosphor = nextPhosphor(phosphor);
+    app.phosphor = phosphor;
+    renderer.setPhosphor(PHOSPHOR[phosphor]);
+    try { localStorage.setItem(PHOSPHOR_KEY, phosphor); } catch { /* private mode */ }
+  }
   if (inp.fullscreen) (document.fullscreenElement ? document.exitFullscreen() : canvas.requestFullscreen()).catch(() => {});
   buf.clear();
   FRAMES[app.mode](inp, dt);
+  // The attract wordmark sits in the score band. That band is the in-game overlay.
+  renderer.setRedLine(app.mode === 'play' ? VIEW.redLinePx : 0);
   renderer.draw(buf, dt);
   requestAnimationFrame(frame);
 });

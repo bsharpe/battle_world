@@ -4,19 +4,45 @@ import { TAU, wrapCoord, delta } from '../math.js';
 
 export function createLineBuffer(max = 32768) {
   const data = new Float32Array(max * 5);
+  const text = new Float32Array(max * 5);
+  const dots = new Float32Array(max * 5);
   return {
-    data,
+    data, text, dots,
     count: 0,
+    textCount: 0,
+    dotCount: 0,
     push(x0, y0, x1, y1, intensity) {
       if (this.count >= max) return;
       const o = this.count++ * 5;
       data[o] = x0; data[o + 1] = y0; data[o + 2] = x1; data[o + 3] = y1; data[o + 4] = intensity;
     },
-    clear() { this.count = 0; },
+    // Glyphs and the wordmark skip the bloom pass.
+    pushText(x0, y0, x1, y1, intensity) {
+      if (this.textCount >= max) return;
+      const o = this.textCount++ * 5;
+      text[o] = x0; text[o + 1] = y0; text[o + 2] = x1; text[o + 3] = y1; text[o + 4] = intensity;
+    },
+    pushDot(x0, y0, x1, y1, intensity) {
+      if (this.dotCount >= max) return;
+      const o = this.dotCount++ * 5;
+      dots[o] = x0; dots[o + 1] = y0; dots[o + 2] = x1; dots[o + 3] = y1; dots[o + 4] = intensity;
+    },
+    clear() { this.count = 0; this.textCount = 0; this.dotCount = 0; },
   };
 }
 
 const OBSTACLE_SHAPES = { 0: 'narrowPyramid', 1: 'tallBox', 12: 'widePyramid', 15: 'shortBox' };
+// ROM spatter is eight dots in a flat ring. A dot at the line sigma vanishes, and a
+// flat ring from the cockpit is an edge-on dash, so each dot is a spoke stood upright.
+const BURST = Array.from({ length: 8 }, (_, n) => {
+  const verts = [], segs = [];
+  for (const [x, , z] of SHAPES[`spatter${n}`].verts) {
+    const i = verts.length;
+    verts.push([x * 0.45, z * 0.45 / MODEL_Y_SCALE, 0], [x, z / MODEL_Y_SCALE, 0]);
+    segs.push([i, i + 1, 30]);
+  }
+  return { verts, segs };
+});
 const ENEMY_SHAPES = { tank: 'tank', super: 'superTank', missile: 'missile' };
 const LAND_PX = VIEW.focal / (4096 / TAU); // px per AVG unit; one full turn matches the 3D camera
 
@@ -94,7 +120,8 @@ export function drawBackground(buf, cam, dt) {
     let base = (((BG.volcanoX + p.x - scroll) % 4096) + 4096) % 4096;
     if (base > 2048) base -= 4096;
     const px = W / 2 + base * LAND_PX, py = hy - (BG.volcanoY + BG.yOffset + p.y) * LAND_PX;
-    buf.push(px, py, px, py, 1);
+    // A zero-length stroke at the line sigma is a speck the half-res bloom cannot lift.
+    buf.pushDot(px, py, px, py, 2.5);
     return true;
   });
 }
@@ -119,7 +146,12 @@ export function drawWorld(buf, g, cam, t = 0) {
     }
   }
   const s = g.saucer;
-  if (s) drawModel(buf, cam, SHAPES.saucer, s.x, s.y, s.z, s.spin, s.dying > 0 ? s.dying / 2 : 1);
+  if (s) drawModel(buf, cam, SHAPES.saucer, s.x, s.y, s.z, s.spin);
   for (const sh of g.shells) drawModel(buf, cam, SHAPES.shell, sh.x, 0, sh.z, Math.atan2(sh.vx, sh.vz));
-  for (const d of g.debris) drawModel(buf, cam, SHAPES[d.shape], d.x, d.y, d.z, d.facing, Math.min(1, d.life));
+  for (const d of g.debris) {
+    if (d.burst) {
+      // Saucer disc is model y=80. The ring replaces the craft on that plane.
+      drawModel(buf, cam, BURST[d.frame], d.x, d.y + 80 * MODEL_Y_SCALE, d.z, 0, 1.6);
+    } else drawModel(buf, cam, SHAPES[d.shape], d.x, d.y, d.z, d.facing, Math.min(1, d.life));
+  }
 }

@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_SCORES, rankFor, insertScore, loadScores, saveScores } from '../src/highscores.js';
+import { DEFAULT_SCORES, rankFor, insertScore, loadScores, saveScores, editInitials } from '../src/highscores.js';
+
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ ';
+const entry = () => ({ letters: [0, 0, 0], pos: 0, armed: true });
+const idle = { left: 0, right: 0, fire: false, start: false, typed: '' };
 
 test('the arcade table starts as ten 5,000-point entries', () => {
   assert.equal(DEFAULT_SCORES.length, 10);
@@ -27,6 +31,36 @@ test('scores survive a save/load round trip', () => {
   const t = insertScore(DEFAULT_SCORES, 12000, 'BEN');
   saveScores(t, storage);
   assert.deepEqual(loadScores(storage), t);
+});
+
+test('typed letters spell the initials; the third letter accepts the name', () => {
+  const e = entry();
+  assert.equal(editInitials(e, { ...idle, typed: 'B' }, LETTERS), false);
+  assert.equal(editInitials(e, { ...idle, typed: 'E' }, LETTERS), false);
+  assert.equal(editInitials(e, { ...idle, typed: 'N' }, LETTERS), true);
+  assert.equal(e.letters.map((i) => LETTERS[i]).join(''), 'BEN');
+});
+
+test('backspace steps back a letter, and a held turn key does not also spin it', () => {
+  const e = entry();
+  editInitials(e, { ...idle, typed: 'B' }, LETTERS);
+  editInitials(e, { ...idle, typed: '\b' }, LETTERS);
+  assert.equal(e.pos, 0);
+  assert.equal(editInitials(e, { ...idle, typed: 'D', left: 0, right: 1 }, LETTERS), false);
+  assert.equal(LETTERS[e.letters[0]], 'D');
+  assert.equal(e.pos, 1);
+  assert.equal(LETTERS[e.letters[1]], 'A');
+});
+
+test('arrows still change the current letter one step per press, fire accepts it', () => {
+  const e = entry();
+  assert.equal(editInitials(e, { ...idle, left: 1, right: -1 }, LETTERS), false);
+  assert.equal(LETTERS[e.letters[0]], 'B');
+  assert.equal(editInitials(e, { ...idle, left: 1, right: -1 }, LETTERS), false);
+  assert.equal(LETTERS[e.letters[0]], 'B');
+  editInitials(e, idle, LETTERS);
+  assert.equal(editInitials(e, { ...idle, fire: true }, LETTERS), false);
+  assert.equal(e.pos, 1);
 });
 
 test('blocked or corrupt storage falls back to defaults without throwing', () => {

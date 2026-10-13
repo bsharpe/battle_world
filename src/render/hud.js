@@ -4,16 +4,17 @@ import { wrapAngle, bearing, delta } from '../math.js';
 
 const S = VIEW.height / 768, CX = VIEW.width / 2, CY = VIEW.height / 2;
 
-export function drawAvg(buf, segs, ox = 0, oy = 0, scale = 1, bright = 1) {
+export function drawAvg(buf, segs, ox = 0, oy = 0, scale = 1, bright = 1, text = false) {
+  const put = text ? buf.pushText : buf.push;
   for (const [x0, y0, x1, y1, i] of segs) {
-    buf.push(CX + (ox + x0 * scale) * S, CY - (oy + y0 * scale) * S, CX + (ox + x1 * scale) * S, CY - (oy + y1 * scale) * S, (bright * i) / 12);
+    put.call(buf, CX + (ox + x0 * scale) * S, CY - (oy + y0 * scale) * S, CX + (ox + x1 * scale) * S, CY - (oy + y1 * scale) * S, (bright * i) / 12);
   }
 }
 
 // ROM strings are drawn at half glyph size: 24-unit advance × 0.5.
 export function drawText(buf, text, x, y, bright = 1, scale = 0.5) {
   for (const ch of text) {
-    if (GLYPHS[ch]) drawAvg(buf, GLYPHS[ch], x, y, scale, bright);
+    if (GLYPHS[ch]) drawAvg(buf, GLYPHS[ch], x, y, scale, bright, true);
     x += 24 * scale;
   }
 }
@@ -84,7 +85,10 @@ export function drawHud(buf, g, h, highScore, t) {
   drawAvg(buf, VG.radar.segs);
   const [rx, ry] = VG.radar.end, r = RADAR.radiusUnits;
   drawAvg(buf, [[0, 0, Math.sin(h.sweep) * r, Math.cos(h.sweep) * r, 8]], rx, ry);
-  if (h.blip) drawAvg(buf, [[h.blip[0], h.blip[1], h.blip[0], h.blip[1], 4 + 11 * h.blipGlow]], rx, ry);
+  if (h.blip) {
+    const sx = CX + (rx + h.blip[0]) * S, sy = CY - (ry + h.blip[1]) * S;
+    buf.pushDot(sx, sy, sx, sy, (4 + 11 * h.blipGlow) / 12);
+  }
 
   if (g.enemy && p.alive) {
     if (enemyInRange(p, g.enemy)) say(buf, 'ENEMY IN RANGE');
@@ -94,14 +98,31 @@ export function drawHud(buf, g, h, highScore, t) {
   if (g.blockedFor > 0) say(buf, 'MOTION BLOCKED');
   if (p.alive) drawAvg(buf, (g.enemy && onTarget(p, g.enemy) ? VG.reticle2 : VG.reticle1).segs);
   else VG.cracks.slice(0, Math.floor(p.deadFor * 24) + 1).forEach((segs) => drawAvg(buf, segs));
-  if (g.over) say(buf, 'GAME OVER');
+  if (g.over) {
+    // Full glyph size. Every other message stays at the ROM half-glyph scale.
+    const over = STRINGS.find((e) => e.text === 'GAME OVER');
+    drawText(buf, over.text, over.x, over.y, 1, 1);
+  }
+}
+
+// Game-font wordmark in the old logotype slot. Glyphs are 16 wide on a 24 advance and 24 tall.
+const TITLE_SCALE = 3;
+const TITLE_GAP = 10;
+const TITLE_TOP = 40;
+
+export function drawTitle(buf) {
+  const oy1 = (VIEW.height / 2 - TITLE_TOP) / S - 24 * TITLE_SCALE;
+  const oy2 = oy1 - 24 * TITLE_SCALE - TITLE_GAP;
+  const lineX = (text) => -((text.length - 1) * 24 + 16) * TITLE_SCALE / 2;
+  drawText(buf, 'BATTLE', lineX('BATTLE'), oy1, 1, TITLE_SCALE);
+  drawText(buf, 'WORLD', lineX('WORLD'), oy2, 1, TITLE_SCALE);
 }
 
 export function drawAttractText(buf, t, scores) {
   if (Math.floor(t / 6) % 2 === 1) {
     say(buf, 'HIGH SCORES');
     scores.forEach((s, i) => drawText(buf, `${String(s.score).padStart(7)}  ${s.initials}`, -120, 120 - i * 20));
-  } else if (Math.floor(t * 2) % 2 === 0) say(buf, 'PRESS START');
+  } else if (Math.floor(t * 2) % 2 === 0) drawText(buf, 'PRESS START', -136, -200);
   say(buf, 'BONUS TANK AT', 'BONUS TANK AT 15000 AND 100000');
   say(buf, '(C)(P)');
 }
