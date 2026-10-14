@@ -18,8 +18,8 @@ The goal is simple: practice building with AI, learn by replicating a favorite a
 You need Python 3 to serve the game and a modern browser with WebGL2 support.
 
 ```sh
-git clone https://github.com/bsharpe/battlezone.git
-cd battlezone
+git clone https://github.com/bsharpe/battle_world.git
+cd battle_world
 npm run serve
 ```
 
@@ -48,7 +48,7 @@ With a modern Node.js installation:
 npm test
 ```
 
-Game logic lives in `src/game.js` and `src/ai.js`; rendering lives in `src/render/`. See [design notes](docs/design.md) and [research notes](docs/research.md) for the mechanics and implementation background.
+Game logic lives in `src/game.js` and `src/ai.js`; rendering lives in `src/render/`. See [the project story](docs/project-process.md) for the prompts and process behind the game, and [design notes](docs/design.md) and [research notes](docs/research.md) for the mechanics and implementation background.
 
 `src/data/rom.js` contains generated shape, font, and layout data derived from Andy McFadden's [annotated Battlezone disassembly](https://6502disassembly.com/va-battlezone/). To regenerate it from that source:
 
