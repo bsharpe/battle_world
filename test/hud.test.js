@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { radarBlip, enemyDirection, enemyInRange, onTarget, sweepCrossed, drawHud, drawText, drawTitle } from '../src/render/hud.js';
+import { radarBlip, enemyDirection, enemyInRange, onTarget, sweepCrossed, drawHud, drawText, drawTitle, drawAttractText } from '../src/render/hud.js';
 import { VIEW } from '../src/config.js';
 import { STRINGS } from '../src/data/rom.js';
 
@@ -135,6 +135,17 @@ test('the attract title reads BATTLE WORLD in the game font', () => {
   const xs = lines.flatMap(([x0, , x1]) => [x0, x1]);
   const mid = (Math.min(...xs) + Math.max(...xs)) / 2;
   assert.ok(Math.abs(mid - CX) < 1, `title is off center by ${mid - CX}`);
+});
+
+test('the title page does not draw the Atari copyright line', () => {
+  const copy = STRINGS.find((e) => e.text.includes('ATARI'));
+  const copyright = [];
+  drawText({ push() {}, pushText: (...seg) => copyright.push(seg.join(',')) }, copy.text, copy.x, copy.y);
+  for (const t of [0, 6]) {
+    const lines = [];
+    drawAttractText({ push() {}, pushText: (...seg) => lines.push(seg.join(',')) }, t, []);
+    assert.ok(copyright.every((seg) => !lines.includes(seg)), 'the Atari copyright line is still on the title page');
+  }
 });
 
 test('drawHud score text matches the ROM field length', () => {

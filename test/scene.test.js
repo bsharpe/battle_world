@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SHAPES } from '../src/data/rom.js';
-import { VIEW } from '../src/config.js';
+import { VIEW, MODEL_Y_SCALE } from '../src/config.js';
 import { delta } from '../src/math.js';
-import { createLineBuffer, makeCamera, drawModel, drawWorld, drawBackground } from '../src/render/scene.js';
+import { createLineBuffer, makeCamera, drawModel, drawWorld, drawBackground, worldOccluders, modelOccluders } from '../src/render/scene.js';
 
 // A segment crosses the view when it covers the full width or height and still
 // meets the rectangle. A short edge that merely sits inside does not.
@@ -93,18 +93,15 @@ test('a super tank does not wear the slow-tank treads', () => {
   const field = (kind) => ({ obstacles: [], enemy: { kind, x, y, z, facing, treadPhase: 0 }, saucer: null, shells: [], debris: [] });
   const superWorld = createLineBuffer();
   drawWorld(superWorld, field('super'), cam);
-  const hull = createLineBuffer();
   const rear = createLineBuffer();
   const front = createLineBuffer();
-  drawModel(hull, cam, SHAPES.superTank, x, y, z, facing);
   drawModel(rear, cam, SHAPES.tread0, x, y, z, facing);
   drawModel(front, cam, SHAPES.tread4, x, y, z, facing);
   const drawn = new Set(segKeys(superWorld));
-  const hullKeys = segKeys(hull);
   const rearKeys = segKeys(rear);
   const frontKeys = segKeys(front);
-  assert.ok(hullKeys.length > 0, 'the super tank hull was culled instead of drawn');
-  assert.ok(hullKeys.every((k) => drawn.has(k)), 'the super tank hull was not projected');
+  // Hidden-line removal trims the hull, so an exact edge list is no longer the proof the hull was drawn.
+  assert.ok(superWorld.count > 0, 'the super tank hull was culled instead of drawn');
   assert.ok(rearKeys.length > 0 && frontKeys.length > 0, 'the tread meshes were culled instead of drawn');
   assert.ok(rearKeys.every((k) => !drawn.has(k)) && frontKeys.every((k) => !drawn.has(k)), 'slow-tank treads were projected on the super tank');
   const tankWorld = createLineBuffer();
@@ -133,4 +130,117 @@ test('volcano particles are wide bloom dots, not hairline points', () => {
     assert.equal(buf.dots[o + 1], buf.dots[o + 3]);
     assert.ok(buf.dots[o + 4] >= 2, 'particle intensity is too low for the bloom to lift');
   }
+});
+
+function pointOnSeg(x, y, x0, y0, x1, y1) {
+  const dx = x1 - x0, dy = y1 - y0;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-8) return Math.hypot(x - x0, y - y0) < 2;
+  const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / len2));
+  return Math.hypot(x - (x0 + t * dx), y - (y0 + t * dy)) < 2;
+}
+
+function covers(buf, x, y) {
+  for (let i = 0; i < buf.count; i++) {
+    const o = i * 5;
+    if (pointOnSeg(x, y, buf.data[o], buf.data[o + 1], buf.data[o + 2], buf.data[o + 3])) return true;
+  }
+  return false;
+}
+
+// Same view transform as drawModel, so a sample point is the point the renderer stroked.
+function screenOf(cam, shape, i, x, y, z, facing) {
+  const [lx, ly, lz] = shape.verts[i];
+  const [dx, dz] = delta(cam.x, cam.z, x, z);
+  const ox = dx * cam.cos - dz * cam.sin, oz = dx * cam.sin + dz * cam.cos;
+  const s = Math.sin(facing), c = Math.cos(facing);
+  const lxw = lx * c + lz * s, lzw = -lx * s + lz * c;
+  const vx = ox + lxw * cam.cos - lzw * cam.sin;
+  const vy = y + ly * MODEL_Y_SCALE;
+  const vz = oz + lxw * cam.sin + lzw * cam.cos;
+  return [VIEW.width / 2 + (vx * VIEW.focal) / vz, cam.horizonY - (vy * VIEW.focal) / vz];
+}
+
+function mid(cam, shape, i, j, x, y, z, facing) {
+  const a = screenOf(cam, shape, i, x, y, z, facing);
+  const b = screenOf(cam, shape, j, x, y, z, facing);
+  return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+}
+
+test('a box face is one mask, so the far wall is not four overlapping triangles', () => {
+  // Each wall of the hull is several triangles on one plane. Head-on, a tall
+  // box shows only the near wall, so that wall is one mask. Leaving the
+  // triangles split is what made a battlefield take a tenth of a second to clip.
+  const faces = modelOccluders(makeCamera(0, 0, 0), SHAPES.tallBox, 0, 0, 5000, 0, 'box');
+  assert.equal(faces.length, 1, `the near wall exploded into ${faces.length} masks`);
+});
+
+test('a box hides the edges behind it and keeps the edges on the near side', () => {
+  // Wireframe strokes cross in the middle of a box. The far bottom edge sits
+  // inside the near face, so a solid box drops it. The near bottom edge is the
+  // skin the camera is looking at, so it stays.
+  const cam = makeCamera(0, 0, 0);
+  const buf = createLineBuffer();
+  drawWorld(buf, { obstacles: [{ type: 1, x: 0, z: 5000, facing: 0 }], enemy: null, saucer: null, shells: [], debris: [] }, cam);
+  const near = mid(cam, SHAPES.tallBox, 0, 1, 0, 0, 5000, 0);
+  const far = mid(cam, SHAPES.tallBox, 2, 3, 0, 0, 5000, 0);
+  assert.ok(covers(buf, near[0], near[1]), 'the near face was clipped away with the far side');
+  assert.ok(!covers(buf, far[0], far[1]), 'the far edge still shows through the box');
+});
+
+test('a box cuts the horizon where the ridge would show through it', () => {
+  const cam = makeCamera(0, 0, 0);
+  const g = { obstacles: [{ type: 1, x: 0, z: 5000, facing: 0 }], enemy: null, saucer: null, shells: [], debris: [] };
+  const buf = createLineBuffer();
+  drawBackground(buf, cam, 0, worldOccluders(g, cam));
+  assert.ok(covers(buf, 100, cam.horizonY), 'the horizon outside the box was removed');
+  assert.ok(!covers(buf, VIEW.width / 2, cam.horizonY), 'the horizon still runs through the box');
+});
+
+test('a shell in front of a box is drawn and a shell behind it is not', () => {
+  const cam = makeCamera(0, 0, 0);
+  const box = { type: 1, x: 0, z: 5000, facing: 0 };
+  const ahead = { x: 0, z: 2000, vx: 0, vz: 1 };
+  const behind = { x: 0, z: 8000, vx: 0, vz: 1 };
+  const solo = (shell) => {
+    const buf = createLineBuffer();
+    drawModel(buf, cam, SHAPES.shell, shell.x, 0, shell.z, Math.atan2(shell.vx, shell.vz));
+    return segKeys(buf);
+  };
+  const worldOf = (shell) => {
+    const buf = createLineBuffer();
+    drawWorld(buf, { obstacles: [box], enemy: null, saucer: null, shells: [shell], debris: [] }, cam);
+    return new Set(segKeys(buf));
+  };
+  const aheadKeys = solo(ahead);
+  const behindKeys = solo(behind);
+  assert.ok(aheadKeys.length > 0 && behindKeys.length > 0, 'the shell was culled instead of drawn');
+  const frontWorld = worldOf(ahead);
+  const backWorld = worldOf(behind);
+  assert.ok(aheadKeys.every((k) => frontWorld.has(k)), 'the box clipped a shell that is closer than it is');
+  assert.ok(behindKeys.every((k) => !backWorld.has(k)), 'a shell behind the box still shows through it');
+});
+
+test('the near side of a tank stays and the far side does not show through', () => {
+  // Nose toward the camera. The gun lip is the near skin. The rear bottom edge
+  // is on the far side of the hull, so it must not draw across the silhouette.
+  const cam = makeCamera(0, 0, 0);
+  const x = 0, y = 0, z = 6000, facing = Math.PI;
+  const buf = createLineBuffer();
+  drawWorld(buf, { obstacles: [], enemy: { kind: 'tank', x, y, z, facing, treadPhase: 0 }, saucer: null, shells: [], debris: [] }, cam);
+  const lip = mid(cam, SHAPES.tank, 18, 20, x, y, z, facing);
+  const rear = mid(cam, SHAPES.tank, 0, 1, x, y, z, facing);
+  assert.ok(covers(buf, lip[0], lip[1]), 'the gun lip was treated as the far side');
+  assert.ok(!covers(buf, rear[0], rear[1]), 'the rear edge still shows through the tank');
+});
+
+test('a box on the world seam does not mask the whole horizon', () => {
+  // The seam box used to throw a 65536-unit edge across the view. An occluder
+  // built from that edge would erase the horizon from edge to edge.
+  const cam = makeCamera(0, 0, 0);
+  const g = { obstacles: [{ type: 15, x: -32768, z: 16384, facing: Math.PI / 2 }], enemy: null, saucer: null, shells: [], debris: [] };
+  const buf = createLineBuffer();
+  drawBackground(buf, cam, 0, worldOccluders(g, cam));
+  const hy = cam.horizonY;
+  assert.ok(covers(buf, 8, hy) || covers(buf, VIEW.width - 8, hy), 'the seam box masked the whole horizon');
 });

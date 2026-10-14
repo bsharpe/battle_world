@@ -124,7 +124,6 @@ export function drawAttractText(buf, t, scores) {
     scores.forEach((s, i) => drawText(buf, `${String(s.score).padStart(7)}  ${s.initials}`, -120, 120 - i * 20));
   } else if (Math.floor(t * 2) % 2 === 0) drawText(buf, 'PRESS START', -136, -200);
   say(buf, 'BONUS TANK AT', 'BONUS TANK AT 15000 AND 100000');
-  say(buf, '(C)(P)');
 }
 
 export function drawInitials(buf, entry, letters, t) {

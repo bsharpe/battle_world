@@ -1,6 +1,6 @@
-import { createVectorRenderer } from './render/gl.js';
-import { createLineBuffer, makeCamera, drawBackground, drawWorld, drawModel, inView } from './render/scene.js?v=11';
-import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle } from './render/hud.js?v=12';
+import { createVectorRenderer, bitmapSize, fitFrame } from './render/gl.js?v=14';
+import { createLineBuffer, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=17';
+import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle } from './render/hud.js?v=13';
 import { createGame, step } from './game.js';
 import { createInput } from './input.js';
 import { createAudio } from './audio.js';
@@ -12,18 +12,20 @@ import { SHAPES } from './data/rom.js';
 const params = new URLSearchParams(location.search);
 const seed = params.has('seed') ? Number(params.get('seed')) : (Math.random() * 2 ** 32) >>> 0;
 const canvas = document.getElementById('screen');
-// One device pixel per canvas pixel. CSS used to fit the 1920×1080 buffer to the
-// window, and that resample blurred the lines on top of the phosphor glow.
+// Picture stays 1920×1080. The bitmap is up to 2× that, and CSS fits the 16:9 frame to the window.
+const [bitmapW, bitmapH] = bitmapSize(VIEW.width, VIEW.height, window.devicePixelRatio);
+canvas.width = bitmapW;
+canvas.height = bitmapH;
 const placeCanvas = () => {
-  const dpr = window.devicePixelRatio || 1;
-  canvas.style.width = `${canvas.width / dpr}px`;
-  canvas.style.height = `${canvas.height / dpr}px`;
+  const [cssW, cssH] = fitFrame(VIEW.width, VIEW.height, window.innerWidth, window.innerHeight);
+  canvas.style.width = `${cssW}px`;
+  canvas.style.height = `${cssH}px`;
 };
 placeCanvas();
 addEventListener('resize', placeCanvas);
 let renderer;
 try {
-  renderer = createVectorRenderer(canvas);
+  renderer = createVectorRenderer(canvas, { viewWidth: VIEW.width, viewHeight: VIEW.height });
 } catch (err) {
   document.getElementById('error').textContent = `This game needs WebGL2 (${err.message})`;
   throw err;
@@ -52,14 +54,19 @@ const app = {
 };
 window.__bz = app; // debug handle for browser verification
 
-const setMode = (mode) => { app.mode = mode; app.modeT = 0; };
+const iom = document.getElementById('iom');
+iom.hidden = app.mode !== 'attract';
+// Keep keyboard activation of the link from also starting a game.
+iom.addEventListener('keydown', (event) => event.stopPropagation());
+const setMode = (mode) => { app.mode = mode; app.modeT = 0; iom.hidden = mode !== 'attract'; };
 const silence = () => audio.update({ on: false });
 
 function frameAttract(inp, dt) {
   silence();
   const cam = makeCamera(0, 0, app.modeT * 0.15);
-  drawBackground(buf, cam, dt);
-  drawWorld(buf, attractWorld, cam, app.t);
+  const occ = worldOccluders(attractWorld, cam);
+  drawBackground(buf, cam, dt, occ);
+  drawWorld(buf, attractWorld, cam, app.t, occ);
   drawTitle(buf);
   drawAttractText(buf, app.modeT, app.scores);
   if (inp.start) {
@@ -82,8 +89,9 @@ function framePlay(inp, dt) {
     saucer: !!g.saucer && inView(cam, g.saucer.x, g.saucer.z),
     missile: g.enemy?.kind === 'missile',
   });
-  drawBackground(buf, cam, dt);
-  drawWorld(buf, g, cam, app.t);
+  const occ = worldOccluders(g, cam);
+  drawBackground(buf, cam, dt, occ);
+  drawWorld(buf, g, cam, app.t, occ);
   drawHud(buf, g, app.hud, Math.max(app.scores[0].score, g.score), app.t);
   if (g.over && (app.overFor += dt) > 3) {
     if (rankFor(app.scores, g.score) >= 0) {
@@ -109,8 +117,10 @@ const SHAPE_NAMES = Object.keys(SHAPES);
 function frameShapes(inp) {
   if (inp.fire) app.shape = (app.shape + 1) % SHAPE_NAMES.length;
   const cam = makeCamera(0, 0, 0);
-  drawBackground(buf, cam, 0);
-  drawModel(buf, cam, SHAPES[SHAPE_NAMES[app.shape]], 0, 0, 4000, app.t);
+  const shape = SHAPES[SHAPE_NAMES[app.shape]];
+  const occ = modelOccluders(cam, shape, 0, 0, 4000, app.t, 'shape');
+  drawBackground(buf, cam, 0, occ);
+  drawModel(buf, cam, shape, 0, 0, 4000, app.t, 1, occ, 'shape');
   drawText(buf, SHAPE_NAMES[app.shape].toUpperCase(), -200, -300, 1, 1);
 }
 

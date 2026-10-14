@@ -74,15 +74,29 @@ void main() {
   o = vec4(1.0 - exp(-v * tint * 2.0), 1.0);
 }`;
 
+// Bitmap is capped at 2× the 1920×1080 picture so a retina CSS fit is a downscale, not an upscale.
+export function bitmapSize(viewW, viewH, dpr) {
+  const pixelScale = Math.min(2, Math.max(1, dpr || 1));
+  return [Math.round(viewW * pixelScale / 2) * 2, Math.round(viewH * pixelScale / 2) * 2];
+}
+
+// Largest 16:9 box that sits inside the window.
+export function fitFrame(viewW, viewH, vw, vh) {
+  const fit = Math.min(vw / viewW, vh / viewH);
+  return [Math.floor(viewW * fit), Math.floor(viewH * fit)];
+}
+
 export function createVectorRenderer(canvas, opts = {}) {
   const o = {
     lineHalfWidth: 2.5, sigma: 0.85, persistence: 0.035, bloom: 0.25, redLinePx: 216,
-    green: [0.25, 1.0, 0.35], red: [1.0, 0.22, 0.18], maxLines: 32768, ...opts,
+    green: [0.25, 1.0, 0.35], red: [1.0, 0.22, 0.18], maxLines: 32768,
+    viewWidth: canvas.width, viewHeight: canvas.height, ...opts,
   };
   const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
   if (!gl) throw new Error('WebGL2 is unavailable');
   const floatOk = !!gl.getExtension('EXT_color_buffer_float');
   const W = canvas.width, H = canvas.height;
+  const VW = o.viewWidth, VH = o.viewHeight;
 
   const compile = (type, src) => {
     const s = gl.createShader(type);
@@ -169,7 +183,7 @@ export function createVectorRenderer(canvas, opts = {}) {
         }
         if (!n) return;
         gl.useProgram(lines.p);
-        gl.uniform2f(lines.u.res, W, H);
+        gl.uniform2f(lines.u.res, VW, VH);
         gl.uniform1f(lines.u.halfW, halfW);
         gl.uniform1f(lines.u.sigma, sigma);
         gl.bindVertexArray(lineVao);
@@ -188,14 +202,14 @@ export function createVectorRenderer(canvas, opts = {}) {
       const prev = glow[cur], next = glow[1 - cur];
       cur = 1 - cur;
       fullscreen(decay, next, [['prev', prev], ['fresh', fresh]], (u) => gl.uniform1f(u.decay, Math.exp(-dt / o.persistence)));
-      fullscreen(blur, halfA, [['src', next]], (u) => gl.uniform2f(u.dir, 2 / W, 0));
-      fullscreen(blur, halfB, [['src', halfA]], (u) => gl.uniform2f(u.dir, 0, 2 / H));
+      fullscreen(blur, halfA, [['src', next]], (u) => gl.uniform2f(u.dir, 2 / VW, 0));
+      fullscreen(blur, halfB, [['src', halfA]], (u) => gl.uniform2f(u.dir, 0, 2 / VH));
       // After the bloom source is taken. A narrow core only: no halo on glyphs or the wordmark.
       stroke(buf.text, buf.textCount, 1.4, 0.4, true);
       fullscreen(out, null, [['glow', next], ['bloom', halfB], ['text', fresh]], (u) => {
         gl.uniform1f(u.bloomK, o.bloom);
         gl.uniform1f(u.redLine, o.redLinePx);
-        gl.uniform2f(u.res, W, H);
+        gl.uniform2f(u.res, VW, VH);
         gl.uniform3fv(u.green, o.green);
         gl.uniform3fv(u.red, o.red);
       });
