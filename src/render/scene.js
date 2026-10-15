@@ -1,6 +1,6 @@
 import { SHAPES, VG } from '../data/rom.js';
 import { VIEW, MODEL_Y_SCALE, BG, DISCO } from '../config.js';
-import { TAU, wrapCoord, delta, dist, mulberry32 } from '../math.js';
+import { TAU, wrapCoord, delta, dist, mulberry32, hueRgb } from '../math.js';
 import { hullFaces, faceOccluder, visibleSpans, clipScreenLine, screenCovered, silhouettes, mergeCoplanar } from './occlude.js?v=17';
 
 export function createLineBuffer(max = 32768) {
@@ -214,8 +214,6 @@ export function drawBackground(buf, cam, dt, occ = NONE, fx = null) {
 }
 
 export function createDisco() { return { obstacles: [], strands: [], sparks: [], t: 0 }; }
-
-const hueRgb = (h) => [0, 4, 2].map((k) => Math.min(1, Math.max(0, Math.abs(((h + k) % 6) - 3) - 1)));
 
 // Math.random, not the game rng: colors must not touch gameplay.
 export function updateDisco(fx, g, dt) {

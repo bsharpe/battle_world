@@ -1,6 +1,6 @@
 import { createVectorRenderer, bitmapSize, fitFrame } from './render/gl.js?v=17';
-import { createLineBuffer, createDisco, updateDisco, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=30';
-import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle, drawModeBanner } from './render/hud.js?v=19';
+import { createLineBuffer, createDisco, updateDisco, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=31';
+import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle, drawModeBanner } from './render/hud.js?v=20';
 import { createGame, step, stepTitle } from './game.js?v=3';
 import { createInput } from './input.js?v=2';
 import { createAudio } from './audio.js';

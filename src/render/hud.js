@@ -1,6 +1,6 @@
 import { VG, GLYPHS, STRINGS } from '../data/rom.js';
 import { VIEW, RADAR, MESSAGES, HUD, ENEMY, DISCO } from '../config.js';
-import { wrapAngle, bearing, delta, mulberry32, TAU } from '../math.js';
+import { wrapAngle, bearing, delta, mulberry32, TAU, hueRgb } from '../math.js';
 
 const S = VIEW.height / 768, CX = VIEW.width / 2, CY = VIEW.height / 2;
 
@@ -212,7 +212,13 @@ const BANNER = { scale: 1.5, y: -140, hold: 1.5, fade: 0.5 }; // y sits between 
 export function drawModeBanner(buf, phosphor, t) {
   const bright = Math.min(1, (BANNER.hold + BANNER.fade - t) / BANNER.fade), text = MODE_NAMES[phosphor];
   if (bright <= 0) return;
-  drawText(buf, text, -textWidth(text, BANNER.scale) / 2, BANNER.y, bright, BANNER.scale);
+  const x = -textWidth(text, BANNER.scale) / 2;
+  if (phosphor !== 'disco') return drawText(buf, text, x, BANNER.y, bright, BANNER.scale);
+  // Disco: one rainbow across the word, drifting at the beams' pace.
+  [...text].forEach((ch, i) => {
+    buf.color = hueRgb(((i / text.length) * 6 + t * DISCO.hueCycle) % 6);
+    drawText(buf, ch, x + i * 24 * BANNER.scale, BANNER.y, bright, BANNER.scale);
+  });
 }
 
 export function drawInitials(buf, entry, letters, t) {
