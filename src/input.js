@@ -10,7 +10,7 @@ const DEADZONE = 0.2;
 export function createInput(win = window) {
   const down = new Set();
   const pending = [];
-  const prev = { fire: false, start: false, toggle: false, fullscreen: false, color: false };
+  const prev = { fire: false, start: false, toggle: false, fullscreen: false, color: false, ufo: false };
   let mode = 'arcade';
   win.addEventListener('keydown', (e) => {
     down.add(e.code);
@@ -52,6 +52,7 @@ export function createInput(win = window) {
       // On the initials screen a letter is a letter. C, T, and F must not change the game.
       if (toggle && !opts.typing) mode = mode === 'arcade' ? 'treads' : 'arcade';
       const color = edge('color', down.has('KeyC'));
+      const ufo = edge('ufo', down.has('KeyU'));
       const fullscreen = edge('fullscreen', down.has('KeyF'));
       return {
         left, right,
@@ -59,6 +60,7 @@ export function createInput(win = window) {
         start: edge('start', start),
         fullscreen: opts.typing ? false : fullscreen,
         color: opts.typing ? false : color,
+        ufo: opts.typing ? false : ufo,
         typed,
       };
     },

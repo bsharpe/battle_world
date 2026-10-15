@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, step } from '../src/game.js';
-import { mulberry32 } from '../src/math.js';
-import { PLAYER } from '../src/config.js';
+import { mulberry32, bearing, wrapAngle } from '../src/math.js';
+import { PLAYER, UFO_KEY } from '../src/config.js';
 
 const IDLE = { left: 0, right: 0, fire: false };
 const FORWARD = { left: 1, right: 1, fire: false };
@@ -92,11 +92,11 @@ test('shooting the saucer scores 5000 and blows it into flying wreckage', () => 
   const g = quiet();
   g.score = 2000;
   g.saucerDelay = 99;
-  g.saucer = { x: 0, z: 6000, y: 0, vx: 0, vz: 0, retarget: 100, spin: 0 };
+  g.saucers = [{ x: 0, z: 6000, y: 0, vx: 0, vz: 0, retarget: 100, spin: 0 }];
   step(g, FIRE, 1 / 60);
   const events = run(g, IDLE, 0.7);
   assert.equal(g.score, 7000);
-  assert.equal(g.saucer, null);
+  assert.equal(g.saucers.length, 0);
   assert.ok(events.some((e) => e.type === 'saucerHit'));
   const shards = g.debris.filter((d) => !d.burst);
   assert.ok(shards.length >= 4, 'the saucer should throw wreckage, not fade in place');
@@ -201,4 +201,35 @@ test('losing the last tank ends the game and freezes the score', () => {
   const before = JSON.stringify(g.player);
   run(g, FORWARD, 1);
   assert.equal(JSON.stringify(g.player), before);
+});
+
+test('each U press puts another saucer in the sky ahead of you, up to the cap', () => {
+  // A show-off key for disco mode: every press adds a UFO you can see arrive,
+  // and the cap keeps a mashed key from burying the frame rate.
+  const g = quiet();
+  const UFO = { ...IDLE, ufo: true };
+  step(g, UFO, 1 / 60);
+  step(g, UFO, 1 / 60);
+  assert.equal(g.saucers.length, 2, 'two presses, two saucers');
+  for (const s of g.saucers) {
+    const off = Math.abs(wrapAngle(bearing(g.player.x, g.player.z, s.x, s.z) - g.player.facing));
+    assert.ok(off <= UFO_KEY.spread + 0.05, `a spawned saucer is ${off} rad off your heading`);
+    const d = dist(g.player.x, g.player.z, s.x, s.z);
+    assert.ok(d >= UFO_KEY.near - 1 && d <= UFO_KEY.far + 1, `a spawned saucer is ${d} away`);
+  }
+  for (let i = 0; i < 20; i++) step(g, UFO, 1 / 60);
+  assert.equal(g.saucers.length, UFO_KEY.max);
+});
+
+test('a shell brings down only the saucer it hits', () => {
+  const g = quiet();
+  g.saucerDelay = 99;
+  g.saucers = [
+    { x: 0, z: 6000, y: 0, vx: 0, vz: 0, retarget: 100, spin: 0 },
+    { x: 8000, z: 6000, y: 0, vx: 0, vz: 0, retarget: 100, spin: 0 },
+  ];
+  step(g, FIRE, 1 / 60);
+  run(g, IDLE, 0.7);
+  assert.equal(g.score, 5000);
+  assert.deepEqual(g.saucers.map((s) => s.x), [8000], 'the wrong saucer went down, or both did');
 });

@@ -1,5 +1,5 @@
 import { OBSTACLES } from './data/rom.js';
-import { PLAYER, SHELL, ENEMY, RULES, MESSAGES } from './config.js';
+import { PLAYER, SHELL, ENEMY, UFO_KEY, RULES, MESSAGES } from './config.js';
 import { TAU, wrapAngle, wrapCoord, dist } from './math.js';
 import { unitBlocked, shellHitsObstacle, randomClearSpot } from './world.js';
 import { spawnEnemy, updateEnemy, updateSaucer } from './ai.js';
@@ -21,7 +21,7 @@ export function createGame({ rng = Math.random, obstacles = OBSTACLES, lives = R
     score: 0, enemyScore: 0, bonusIdx: 0, time: 0, over: false,
     player: { x: 0, z: 0, facing: 0, alive: true, deadFor: 0 },
     enemy: null, enemyDelay: ENEMY.spawnDelay, forceGround: false, missilesLaunched: 0,
-    saucer: null, saucerDelay: rng() * ENEMY.saucer.delayMax,
+    saucers: [], saucerDelay: rng() * ENEMY.saucer.delayMax,
     shells: [], debris: [],
     blockedFor: 0, jolt: 0, events: [],
   };
@@ -38,6 +38,7 @@ export function step(g, input, dt) {
   if (g.player.alive) {
     movePlayer(g, input, dt);
     if (input.fire) fireShell(g, g.player, 'player');
+    if (input.ufo) spawnUfo(g);
   } else updateDeath(g, dt);
   updateEnemySlot(g, dt);
   updateSaucer(g, dt);
@@ -118,8 +119,8 @@ function updateShells(g, dt) {
           destroyEnemy(g);
           return false;
         }
-        const u = g.saucer;
-        if (u && dist(s.x, s.z, u.x, u.z) < ENEMY.hitRadius) {
+        const u = g.saucers.find((q) => dist(s.x, s.z, q.x, q.z) < ENEMY.hitRadius);
+        if (u) {
           destroySaucer(g, u);
           return false;
         }
@@ -132,12 +133,19 @@ function updateShells(g, dt) {
   });
 }
 
+function spawnUfo(g) {
+  if (g.saucers.length >= UFO_KEY.max) return;
+  const p = g.player, b = p.facing + (g.rng() * 2 - 1) * UFO_KEY.spread;
+  const d = UFO_KEY.near + g.rng() * (UFO_KEY.far - UFO_KEY.near);
+  g.saucers.push({ x: wrapCoord(p.x + Math.sin(b) * d), z: wrapCoord(p.z + Math.cos(b) * d), y: 0, vx: 0, vz: 0, retarget: 0, spin: 0 });
+}
+
 function destroySaucer(g, u) {
   spawnDebris(g, { kind: 'saucer', x: u.x, y: u.y, z: u.z });
   g.debris.push({ burst: true, frame: 0, x: u.x, y: u.y, z: u.z, life: BURST_TIME });
   addScore(g, ENEMY.saucer.score);
   g.events.push({ type: 'saucerHit' });
-  g.saucer = null;
+  g.saucers = g.saucers.filter((s) => s !== u);
   g.saucerDelay = g.rng() * ENEMY.saucer.delayMax;
 }
 

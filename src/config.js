@@ -95,6 +95,8 @@ export const OBSTACLE = {
   shellRadius: { 0: 224, 1: 352, 12: 344, 15: 0 },
 };
 
+// U key spawns saucers ahead of the player: cap, distance range, max angle off the heading (rad).
+export const UFO_KEY = { max: 8, near: 6000, far: 12000, spread: 0.44 };
 export const ENEMY = {
   hitRadius: 800, // ponytail: ROM varies this with facing (about 224–400); one circle until it feels wrong
   tank: { speed: 192 * TICK, turnFast: 2 * STEP * TICK, turnSlow: STEP * TICK, standoff: 1280, score: 1000 },

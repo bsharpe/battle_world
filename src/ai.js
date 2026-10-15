@@ -104,25 +104,27 @@ function updateMissile(g, e, dt) {
 }
 
 export function updateSaucer(g, dt) {
-  const cfg = ENEMY.saucer, s = g.saucer;
-  if (!s) {
+  const cfg = ENEMY.saucer;
+  if (!g.saucers.length) { // the arcade saucer waits for an empty sky
     if (g.score < cfg.minScore || !g.player.alive) return;
     g.saucerDelay -= dt;
     if (g.saucerDelay > 0) return;
     const b = g.rng() * TAU, d = 6000 + g.rng() * 14000;
-    g.saucer = {
+    g.saucers.push({
       x: wrapCoord(g.player.x + Math.sin(b) * d), z: wrapCoord(g.player.z + Math.cos(b) * d),
       y: 0, vx: 0, vz: 0, retarget: 0, spin: 0,
-    };
+    });
     return;
   }
-  s.retarget -= dt;
-  if (s.retarget <= 0) {
-    s.vx = (g.rng() * 2 - 1) * cfg.maxVel;
-    s.vz = (g.rng() * 2 - 1) * cfg.maxVel;
-    s.retarget = g.rng() * cfg.retargetMax;
+  for (const s of g.saucers) {
+    s.retarget -= dt;
+    if (s.retarget <= 0) {
+      s.vx = (g.rng() * 2 - 1) * cfg.maxVel;
+      s.vz = (g.rng() * 2 - 1) * cfg.maxVel;
+      s.retarget = g.rng() * cfg.retargetMax;
+    }
+    s.x = wrapCoord(s.x + s.vx * dt);
+    s.z = wrapCoord(s.z + s.vz * dt);
+    s.spin += dt * 2;
   }
-  s.x = wrapCoord(s.x + s.vx * dt);
-  s.z = wrapCoord(s.z + s.vz * dt);
-  s.spin += dt * 2;
 }

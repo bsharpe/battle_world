@@ -1,8 +1,8 @@
 import { createVectorRenderer, bitmapSize, fitFrame } from './render/gl.js?v=17';
-import { createLineBuffer, createDisco, updateDisco, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=26';
+import { createLineBuffer, createDisco, updateDisco, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=27';
 import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle } from './render/hud.js?v=15';
-import { createGame, step } from './game.js';
-import { createInput } from './input.js';
+import { createGame, step } from './game.js?v=2';
+import { createInput } from './input.js?v=2';
 import { createAudio } from './audio.js';
 import { loadScores, saveScores, rankFor, insertScore, editInitials } from './highscores.js';
 import { mulberry32 } from './math.js';
@@ -88,7 +88,7 @@ function framePlay(inp, dt) {
   audio.update({
     on: !g.over,
     engine: g.player.alive ? (Math.abs(inp.left) + Math.abs(inp.right)) / 2 : 0,
-    saucer: !!g.saucer && inView(cam, g.saucer.x, g.saucer.z),
+    saucer: g.saucers.some((s) => inView(cam, s.x, s.z)),
     missile: g.enemy?.kind === 'missile',
   });
   const occ = worldOccluders(g, cam);

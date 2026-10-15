@@ -129,8 +129,18 @@ test('no saucer below 2000 points; one arrives within 16 s after', () => {
   const g = game();
   g.score = 1999;
   for (let i = 0; i < 1000; i++) updateSaucer(g, 0.1);
-  assert.equal(g.saucer, null);
+  assert.equal(g.saucers.length, 0);
   g.score = 2000;
-  for (let i = 0; i < 161 && !g.saucer; i++) updateSaucer(g, 0.1);
-  assert.ok(g.saucer);
+  for (let i = 0; i < 161 && !g.saucers.length; i++) updateSaucer(g, 0.1);
+  assert.equal(g.saucers.length, 1);
+});
+
+test('the arcade saucer waits for an empty sky', () => {
+  // The ROM flies one saucer at a time. Saucers called in with the U key are
+  // extras; they must not make the arcade one arrive alongside them.
+  const g = game();
+  g.score = 2000;
+  g.saucers = [{ x: 0, z: 9000, y: 0, vx: 0, vz: 0, retarget: 100, spin: 0 }];
+  for (let i = 0; i < 300; i++) updateSaucer(g, 0.1);
+  assert.equal(g.saucers.length, 1);
 });

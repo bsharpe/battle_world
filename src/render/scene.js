@@ -138,8 +138,7 @@ export function worldOccluders(g, cam) {
   });
   const e = g.enemy;
   if (e && ENEMY_SHAPES[e.kind]) out.push(...modelOccluders(cam, SHAPES[ENEMY_SHAPES[e.kind]], e.x, e.y, e.z, e.facing, 'enemy'));
-  const s = g.saucer;
-  if (s) out.push(...modelOccluders(cam, SHAPES.saucer, s.x, s.y, s.z, s.spin, 'saucer'));
+  g.saucers.forEach((s, i) => out.push(...modelOccluders(cam, SHAPES.saucer, s.x, s.y, s.z, s.spin, `saucer:${i}`)));
   return out;
 }
 
@@ -286,10 +285,10 @@ for (let e = 0; e < 8; e++) {
   for (let q = 0; q < 4; q++) LEDS.verts.push(lerp3(a, b, (q + 0.3) / 4), lerp3(a, b, (q + 0.7) / 4));
 }
 
-function drawDiscoSaucer(buf, cam, s, t, occ) {
+function drawDiscoSaucer(buf, cam, s, t, occ, owner) {
   const top = placeVerts(cam, { verts: [APEX] }, s.x, s.y, s.z, s.spin);
   if (!top) return;
-  drawModel(buf, cam, FACETS, s.x, s.y, s.z, s.spin, 1, occ, 'saucer');
+  drawModel(buf, cam, FACETS, s.x, s.y, s.z, s.spin, 1, occ, owner);
   const L = DISCO.glintEvery, rng = mulberry32(Math.floor(t / L) + 1);
   const bands = [0, ...DISCO.facetRings, 1], cells = [];
   for (let i = 0; i < DISCO.glints; i++) {
@@ -298,7 +297,7 @@ function drawDiscoSaucer(buf, cam, s, t, occ) {
   }
   buf.color = DISCO.white;
   for (const c of placeVerts(cam, { verts: cells }, s.x, s.y, s.z, s.spin)) {
-    for (const [dx, dy] of [[60, 0], [0, 60]]) segment(buf, cam, [c[0] - dx, c[1] - dy, c[2]], [c[0] + dx, c[1] + dy, c[2]], 1.6, occ, 'saucer');
+    for (const [dx, dy] of [[60, 0], [0, 60]]) segment(buf, cam, [c[0] - dx, c[1] - dy, c[2]], [c[0] + dx, c[1] + dy, c[2]], 1.6, occ, owner);
   }
   // A light cone is rays fanned from the source to a ring: they overlap into a bright source and thin out
   // toward the end. Each ray's pieces are straight view-space lerps whose brightness steps down source to tip.
@@ -306,7 +305,7 @@ function drawDiscoSaucer(buf, cam, s, t, occ) {
     buf.color = rgb;
     const n = DISCO.beamFade.length;
     for (const b of ends) {
-      for (let p = 0; p < n; p++) segment(buf, cam, lerp3(a, b, p / n), lerp3(a, b, (p + 1) / n), k * DISCO.coneRay * DISCO.beamFade[p], occ, 'saucer');
+      for (let p = 0; p < n; p++) segment(buf, cam, lerp3(a, b, p / n), lerp3(a, b, (p + 1) / n), k * DISCO.coneRay * DISCO.beamFade[p], occ, owner);
     }
   };
   const ring = (cx, cy, cz, r) => Array.from({ length: DISCO.coneRays }, (_, q) => {
@@ -339,7 +338,7 @@ function drawDiscoSaucer(buf, cam, s, t, occ) {
   const led = placeVerts(cam, LEDS, s.x, s.y, s.z, s.spin);
   for (let k = 0; k < DISCO.leds; k++) {
     buf.color = hueRgb(((k / DISCO.leds) * 6 + t * DISCO.ledChase) % 6);
-    segment(buf, cam, led[2 * k], led[2 * k + 1], 1.3, occ, 'saucer');
+    segment(buf, cam, led[2 * k], led[2 * k + 1], 1.3, occ, owner);
   }
 }
 
@@ -396,13 +395,12 @@ export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam), fx =
     }
     buf.color = base;
   }
-  const s = g.saucer;
-  if (s) {
+  g.saucers.forEach((s, i) => {
     if (fx) buf.color = DISCO.silver;
-    drawModel(buf, cam, SHAPES.saucer, s.x, s.y, s.z, s.spin, 1, occ, 'saucer');
-    if (fx) drawDiscoSaucer(buf, cam, s, t, occ);
+    drawModel(buf, cam, SHAPES.saucer, s.x, s.y, s.z, s.spin, 1, occ, `saucer:${i}`);
+    if (fx) drawDiscoSaucer(buf, cam, s, t, occ, `saucer:${i}`);
     buf.color = base;
-  }
+  });
   for (const sh of g.shells) drawModel(buf, cam, SHAPES.shell, sh.x, 0, sh.z, Math.atan2(sh.vx, sh.vz), 1, occ);
   for (const d of g.debris) {
     if (d.burst) {

@@ -68,7 +68,7 @@ test('a tank seen across the world seam draws its near treads, not the far set',
   const cam = makeCamera(cx, cz, Math.atan2(dx, dz));
   const enemy = { kind: 'tank', x: ex, y: 0, z: ez, facing: 0, treadPhase: 0 };
   const world = createLineBuffer();
-  drawWorld(world, { obstacles: [], enemy, saucer: null, shells: [], debris: [] }, cam);
+  drawWorld(world, { obstacles: [], enemy, saucers: [], shells: [], debris: [] }, cam);
   const front = createLineBuffer();
   const rear = createLineBuffer();
   drawModel(front, cam, SHAPES.tread4, ex, 0, ez, 0);
@@ -90,7 +90,7 @@ test('a super tank does not wear the slow-tank treads', () => {
   // behind the tank, so the near tread mesh is tread0, not tread4.
   const cam = makeCamera(0, 0, 0);
   const x = 0, y = 0, z = 5000, facing = 0;
-  const field = (kind) => ({ obstacles: [], enemy: { kind, x, y, z, facing, treadPhase: 0 }, saucer: null, shells: [], debris: [] });
+  const field = (kind) => ({ obstacles: [], enemy: { kind, x, y, z, facing, treadPhase: 0 }, saucers: [], shells: [], debris: [] });
   const superWorld = createLineBuffer();
   drawWorld(superWorld, field('super'), cam);
   const rear = createLineBuffer();
@@ -181,7 +181,7 @@ test('a box hides the edges behind it and keeps the edges on the near side', () 
   // skin the camera is looking at, so it stays.
   const cam = makeCamera(0, 0, 0);
   const buf = createLineBuffer();
-  drawWorld(buf, { obstacles: [{ type: 1, x: 0, z: 5000, facing: 0 }], enemy: null, saucer: null, shells: [], debris: [] }, cam);
+  drawWorld(buf, { obstacles: [{ type: 1, x: 0, z: 5000, facing: 0 }], enemy: null, saucers: [], shells: [], debris: [] }, cam);
   const near = mid(cam, SHAPES.tallBox, 0, 1, 0, 0, 5000, 0);
   const far = mid(cam, SHAPES.tallBox, 2, 3, 0, 0, 5000, 0);
   assert.ok(covers(buf, near[0], near[1]), 'the near face was clipped away with the far side');
@@ -190,7 +190,7 @@ test('a box hides the edges behind it and keeps the edges on the near side', () 
 
 test('a box cuts the horizon where the ridge would show through it', () => {
   const cam = makeCamera(0, 0, 0);
-  const g = { obstacles: [{ type: 1, x: 0, z: 5000, facing: 0 }], enemy: null, saucer: null, shells: [], debris: [] };
+  const g = { obstacles: [{ type: 1, x: 0, z: 5000, facing: 0 }], enemy: null, saucers: [], shells: [], debris: [] };
   const buf = createLineBuffer();
   drawBackground(buf, cam, 0, worldOccluders(g, cam));
   assert.ok(covers(buf, 100, cam.horizonY), 'the horizon outside the box was removed');
@@ -209,7 +209,7 @@ test('a shell in front of a box is drawn and a shell behind it is not', () => {
   };
   const worldOf = (shell) => {
     const buf = createLineBuffer();
-    drawWorld(buf, { obstacles: [box], enemy: null, saucer: null, shells: [shell], debris: [] }, cam);
+    drawWorld(buf, { obstacles: [box], enemy: null, saucers: [], shells: [shell], debris: [] }, cam);
     return new Set(segKeys(buf));
   };
   const aheadKeys = solo(ahead);
@@ -227,7 +227,7 @@ test('the near side of a tank stays and the far side does not show through', () 
   const cam = makeCamera(0, 0, 0);
   const x = 0, y = 0, z = 6000, facing = Math.PI;
   const buf = createLineBuffer();
-  drawWorld(buf, { obstacles: [], enemy: { kind: 'tank', x, y, z, facing, treadPhase: 0 }, saucer: null, shells: [], debris: [] }, cam);
+  drawWorld(buf, { obstacles: [], enemy: { kind: 'tank', x, y, z, facing, treadPhase: 0 }, saucers: [], shells: [], debris: [] }, cam);
   const lip = mid(cam, SHAPES.tank, 18, 20, x, y, z, facing);
   const rear = mid(cam, SHAPES.tank, 0, 1, x, y, z, facing);
   assert.ok(covers(buf, lip[0], lip[1]), 'the gun lip was treated as the far side');
@@ -238,7 +238,7 @@ test('a box on the world seam does not mask the whole horizon', () => {
   // The seam box used to throw a 65536-unit edge across the view. An occluder
   // built from that edge would erase the horizon from edge to edge.
   const cam = makeCamera(0, 0, 0);
-  const g = { obstacles: [{ type: 15, x: -32768, z: 16384, facing: Math.PI / 2 }], enemy: null, saucer: null, shells: [], debris: [] };
+  const g = { obstacles: [{ type: 15, x: -32768, z: 16384, facing: Math.PI / 2 }], enemy: null, saucers: [], shells: [], debris: [] };
   const buf = createLineBuffer();
   drawBackground(buf, cam, 0, worldOccluders(g, cam));
   const hy = cam.horizonY;
@@ -247,7 +247,7 @@ test('a box on the world seam does not mask the whole horizon', () => {
 
 // Disco tread trails. A field with no obstacles, saucer, shells or debris draws
 // nothing but the tanks, so once the enemy is gone every line is trail.
-const trailField = (player) => ({ obstacles: [], enemy: null, saucer: null, shells: [], debris: [], player });
+const trailField = (player) => ({ obstacles: [], enemy: null, saucers: [], shells: [], debris: [], player });
 
 function drive(fx, g, unit, dz, seconds, steps = 40) {
   for (let i = 0; i < steps; i++) {
@@ -335,7 +335,7 @@ test('the saucer throws mirror-ball beams that sweep around it', () => {
   // beams must land somewhere new even while the saucer itself holds still.
   const fx = createDisco();
   const g = trailField({ x: 0, z: 0, facing: 0, alive: false });
-  g.saucer = { x: 0, y: 0, z: 9000, vx: 0, vz: 0, retarget: 0, spin: 0 };
+  g.saucers = [{ x: 0, y: 0, z: 9000, vx: 0, vz: 0, retarget: 0, spin: 0 }];
   const cam = makeCamera(0, 0, 0);
   const frame = (t, disco) => {
     const buf = createLineBuffer();
