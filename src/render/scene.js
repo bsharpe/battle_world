@@ -284,6 +284,20 @@ export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam), fx =
       const b = [a[0] + dx * cam.cos - dz * cam.sin, a[1] + p.vy * k, a[2] + dx * cam.sin + dz * cam.cos];
       segment(buf, cam, a, b, 1.5 * (1 - (fx.t - p.born) / DISCO.sparkLife), occ);
     }
+    const sc = g.saucer;
+    if (sc) {
+      const o = toView(cam, sc.x, sc.y + 80 * MODEL_Y_SCALE, sc.z), h = o[1] + 320 * MODEL_Y_SCALE;
+      const beamOcc = occ.filter((face) => face.owner !== 'saucer'), n = DISCO.beamFade.length;
+      for (let i = 0; i < DISCO.beams; i++) {
+        const a = (i / DISCO.beams) * TAU + t * DISCO.beamSpin, r = DISCO.beamReach[i % 2];
+        const at = (k) => {
+          const dx = Math.sin(a) * r * k, dz = Math.cos(a) * r * k;
+          return [o[0] + dx * cam.cos - dz * cam.sin, o[1] - h * k, o[2] + dx * cam.sin + dz * cam.cos];
+        };
+        buf.color = hueRgb((i / DISCO.beams) * 6);
+        for (let j = 0; j < n; j++) segment(buf, cam, at(j / n), at((j + 1) / n), DISCO.beamFade[j], beamOcc);
+      }
+    }
     buf.color = base;
   }
   g.obstacles.forEach((o, i) => {

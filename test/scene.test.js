@@ -329,3 +329,22 @@ test('a shell in flight throws off sparks that outlive it and then burn out', ()
   drawWorld(later, g, cam, 0, [], fx);
   assert.equal(later.count, 0, 'the sparks never burned out');
 });
+
+test('the saucer throws mirror-ball beams that sweep around it', () => {
+  // A mirror ball's light is the beams turning, not the ball. A moment later the
+  // beams must land somewhere new even while the saucer itself holds still.
+  const fx = createDisco();
+  const g = trailField({ x: 0, z: 0, facing: 0, alive: false });
+  g.saucer = { x: 0, y: 0, z: 9000, vx: 0, vz: 0, retarget: 0, spin: 0 };
+  const cam = makeCamera(0, 0, 0);
+  const frame = (t, disco) => {
+    const buf = createLineBuffer();
+    drawWorld(buf, g, cam, t, [], disco);
+    return buf;
+  };
+  const plain = frame(0, null), now = frame(0, fx), later = frame(0.5, fx);
+  assert.ok(now.count > plain.count, 'disco added no beams to the saucer');
+  const before = new Set(segKeys(now));
+  const moved = segKeys(later).filter((k) => !before.has(k));
+  assert.ok(moved.length >= DISCO.beams, `only ${moved.length} beam pieces moved; the beams are not sweeping`);
+});

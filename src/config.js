@@ -48,6 +48,10 @@ export const DISCO = {
   sparkLife: 0.5,   // seconds for a spark to fade out
   sparkSpread: 600, // max sideways spark speed (world units/s)
   sparkLift: [300, 1200], // min/max upward spark speed
+  beams: 12,        // mirror-ball beams from the saucer
+  beamReach: [1400, 3200], // ground distance where alternate beams land (hull radius is 960)
+  beamSpin: 1.2,    // rad/s the beam set turns, apart from the saucer's own spin
+  beamFade: [1.2, 0.9, 0.6, 0.3], // brightness of each piece, source to tip
   sparkGravity: 3000, // world units/s^2
   sparkStreak: 0.04, // seconds of travel each streak covers
   glass: [0.8, 0.9, 1.0],        // blue-white crack color
