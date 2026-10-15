@@ -346,5 +346,5 @@ test('the saucer throws mirror-ball beams that sweep around it', () => {
   assert.ok(now.count > plain.count, 'disco added no beams to the saucer');
   const before = new Set(segKeys(now));
   const moved = segKeys(later).filter((k) => !before.has(k));
-  assert.ok(moved.length >= DISCO.beams, `only ${moved.length} beam pieces moved; the beams are not sweeping`);
+  assert.ok(moved.length >= DISCO.skyBeams, `only ${moved.length} beam pieces moved; the beams are not sweeping`);
 });
