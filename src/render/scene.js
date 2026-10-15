@@ -351,6 +351,7 @@ function drawMirrorBall(buf, cam, g, s, t, occ, owner) {
   // toward the end. Each ray's pieces are straight view-space lerps whose brightness steps down source to tip.
   const n = DISCO.beamFade.length;
   for (let i = 0; i < DISCO.ballCones; i++) {
+    if (mulberry32(Math.floor(t / DISCO.coneBlink + i / DISCO.ballCones) * DISCO.ballCones + i)() > DISCO.coneOn) continue;
     const lon = (i / DISCO.ballCones) * TAU, lat = DISCO.coneLats[i % DISCO.coneLats.length];
     const d = turn([Math.cos(lat) * Math.sin(lon), Math.sin(lat), Math.cos(lat) * Math.cos(lon)]);
     const sy = by + d[1] * R, ground = d[1] < -0.05, k = ground ? (gy - sy) / d[1] : DISCO.skyLen, r = ground ? DISCO.spotRadius : DISCO.skyLen * DISCO.skyCone;

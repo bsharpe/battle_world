@@ -59,6 +59,7 @@ export const DISCO = {
   ballSpin: 0.6,                 // rad/s the ball turns
   ballGrid: [12, 8],             // facet grid: longitudes, latitude bands
   ballCones: 10,                 // light cones thrown from facets
+  coneBlink: 0.3, coneOn: 0.6,   // each cone re-rolls on/off every coneBlink s (staggered), lit with chance coneOn; a flash takes 2 rolls, so <= 1.7 flashes/s
   coneLats: [-0.9, -0.45, 0.5],  // facet latitudes (rad) the cones cycle through; negative lands on the ground
   cableLen: 12000,               // cable from the top of the ball into the sky
   specks: 96, speckMax: 1.8, speckSize: 70, speckRadius: 6000, // light specks: count, max angle from straight down (rad), cross half-size, reach
