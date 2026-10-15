@@ -270,9 +270,12 @@ export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam), fx =
       const [qx, qz] = delta(p.x, p.z, q.x, q.z);
       // Offsets from p, not toView per end: a segment straddling ±32768 must not tear.
       const at = (dx, dz) => [ax + dx * cam.cos - dz * cam.sin, y, az + dx * cam.sin + dz * cam.cos];
+      // Each tread prints a band: two rails, and a cleat bar across it at every recorded point.
+      const side = (pt, ox, oz, k) => at(ox + k * Math.cos(pt.facing), oz - k * Math.sin(pt.facing));
       for (const sd of [-1, 1]) {
-        const k = sd * DISCO.trailGauge;
-        segment(buf, cam, at(k * Math.cos(p.facing), -k * Math.sin(p.facing)), at(qx + k * Math.cos(q.facing), qz - k * Math.sin(q.facing)), bright, occ);
+        const k0 = sd * DISCO.trailGauge - DISCO.trailBand, k1 = sd * DISCO.trailGauge + DISCO.trailBand;
+        for (const k of [k0, k1]) segment(buf, cam, side(p, 0, 0, k), side(q, qx, qz, k), bright, occ);
+        segment(buf, cam, side(p, 0, 0, k0), side(p, 0, 0, k1), bright, occ);
       }
     }
     for (const p of fx.sparks) {

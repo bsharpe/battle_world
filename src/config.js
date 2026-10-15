@@ -42,6 +42,7 @@ export const DISCO = {
   trailBreak: 2000, // a jump longer than this starts a new strand
   trailLife: 5,     // seconds for a trail point to fade out
   trailGauge: 460,  // half the distance between the treads (ROM tread meshes sit at x +-552)
+  trailBand: 110,   // half the width of each tread print
   rainbowLen: 6000, // world units per full rainbow cycle
   sparkRate: 40,    // sparks per second per shell
   sparkLife: 0.5,   // seconds for a spark to fade out
