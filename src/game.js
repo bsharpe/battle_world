@@ -133,13 +133,12 @@ function updateShells(g, dt) {
   });
 }
 
-// Disco title screen: after a random wait, one mirror ball turns up where the turning camera looks.
-export function stepTitle(g, facing, dt) {
-  if (!g.saucers.length) {
-    if ((g.saucerDelay -= dt) > 0) return;
-    g.player.facing = facing;
-    spawnUfo(g);
-  }
+// Title screen. U calls saucers where the turning camera looks. With auto (disco), one mirror
+// ball also turns up there by itself after a random wait.
+export function stepTitle(g, facing, dt, { ufo = false, auto = true } = {}) {
+  g.player.facing = facing;
+  if (ufo) spawnUfo(g);
+  else if (auto && !g.saucers.length && (g.saucerDelay -= dt) <= 0) spawnUfo(g);
   updateSaucer(g, dt);
 }
 

@@ -1,7 +1,7 @@
 import { createVectorRenderer, bitmapSize, fitFrame } from './render/gl.js?v=17';
 import { createLineBuffer, createDisco, updateDisco, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=31';
 import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle, drawModeBanner } from './render/hud.js?v=23';
-import { createGame, step, stepTitle } from './game.js?v=3';
+import { createGame, step, stepTitle } from './game.js?v=4';
 import { createInput } from './input.js?v=2';
 import { createAudio } from './audio.js';
 import { loadScores, saveScores, rankFor, insertScore, editInitials } from './highscores.js';
@@ -69,8 +69,7 @@ function frameAttract(inp, dt) {
   silence();
   const facing = app.modeT * 0.15, cam = makeCamera(0, 0, facing);
   const fx = app.phosphor === 'disco' ? disco : null;
-  if (fx) stepTitle(attractWorld, facing, dt);
-  else attractWorld.saucers = [];
+  stepTitle(attractWorld, facing, dt, { ufo: inp.ufo, auto: !!fx });
   const occ = worldOccluders(attractWorld, cam, fx);
   if (fx) updateDisco(fx, attractWorld, dt);
   drawBackground(buf, cam, dt, occ, fx);

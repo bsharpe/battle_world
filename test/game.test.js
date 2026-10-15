@@ -234,6 +234,20 @@ test('a shell brings down only the saucer it hits', () => {
   assert.deepEqual(g.saucers.map((s) => s.x), [8000], 'the wrong saucer went down, or both did');
 });
 
+test('U on the title screen calls saucers into view, but green mode never sends one on its own', () => {
+  // U is the show-off key: it has to work before a game starts, in every color mode, and land where the camera looks.
+  const g = createGame({ rng: mulberry32(3), obstacles: [] });
+  g.saucerDelay = 0;
+  for (let t = 0; t < 60; t += 0.05) stepTitle(g, 0.5, 0.05, { auto: false });
+  assert.equal(g.saucers.length, 0, 'green title spawned a saucer without U');
+  stepTitle(g, 2, 1 / 30, { ufo: true, auto: false });
+  assert.equal(g.saucers.length, 1);
+  const off = Math.abs(wrapAngle(bearing(0, 0, g.saucers[0].x, g.saucers[0].z) - 2));
+  assert.ok(off <= UFO_KEY.spread + 0.05, `the saucer turns up ${off} rad off the camera heading`);
+  for (let i = 0; i < UFO_KEY.max + 3; i++) stepTitle(g, 2, 1 / 30, { ufo: true, auto: false });
+  assert.equal(g.saucers.length, UFO_KEY.max, 'U stops at the same cap as in play');
+});
+
 test('the disco title screen gets one mirror ball, after a random wait, where the camera is looking', () => {
   // The title screen is a showcase: the ball has to arrive in view to be seen at all,
   // and one ball is a visitor where several would be the U key's swarm.
