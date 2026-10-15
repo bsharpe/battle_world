@@ -32,8 +32,13 @@ export const PHOSPHOR = {
   disco: [0.25, 1.0, 0.35],
 };
 
-// Disco flip interval in seconds, kept under 3 flashes/s (photosensitivity limit).
-export const DISCO = { white: [1, 1, 1], flipMin: 0.5, flipMax: 1.5 };
+export const DISCO = {
+  white: [1, 1, 1],
+  flipMin: 0.5, flipMax: 1.5, // obstacle recolor interval (s), kept under 3 flashes/s (photosensitivity limit)
+  moon: [1.0, 0.6, 0.05],     // cheddar
+  browns: [[0.9, 0.45, 0.15], [0.7, 0.35, 0.12], [1.0, 0.62, 0.3], [0.55, 0.28, 0.1]],
+  blossom: [1.0, 0.45, 0.7], blossomPx: 10,
+};
 
 export function nextPhosphor(name) {
   const names = Object.keys(PHOSPHOR);

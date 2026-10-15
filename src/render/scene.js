@@ -159,36 +159,57 @@ function pushScreen(buf, x0, y0, x1, y1, inten, occ) {
   for (const [a, b, c, d] of clipScreenLine(x0, y0, x1, y1, occ)) buf.push(a, b, c, d, inten);
 }
 
-export function drawBackground(buf, cam, dt, occ = NONE) {
+// ROM mountains top out at y=96; every landscape stroke above that is the moon.
+const MOON_Y = 100;
+// Five-petal rose r = |cos(5θ/2)|, the vector stand-in for a cherry blossom.
+const BLOSSOM = Array.from({ length: 41 }, (_, k) => {
+  const a = (k / 40) * TAU, r = Math.abs(Math.cos(2.5 * a));
+  return [r * Math.cos(a), r * Math.sin(a)];
+});
+
+export function drawBackground(buf, cam, dt, occ = NONE, fx = null) {
   // The backdrop is infinitely far, so an object's outline hides it. Depth stays
   // on the per-face list that drawWorld uses.
   const mask = occ.length ? silhouettes(occ) : occ;
-  const W = VIEW.width, hy = cam.horizonY;
+  const W = VIEW.width, hy = cam.horizonY, color = buf.color;
   pushScreen(buf, 0, hy, W, hy, 0.8, mask);
   const scroll = (cam.facing / TAU) * 4096 + BG.phase;
   VG.landscape.forEach((segs, i) => {
     let base = (((i * 512 - scroll) % 4096) + 4096) % 4096;
     if (base > 2048) base -= 4096;
-    for (const [x0, y0, x1, y1, inten] of segs) {
+    segs.forEach(([x0, y0, x1, y1, inten], j) => {
+      if (fx) buf.color = Math.min(y0, y1) >= MOON_Y ? DISCO.moon : DISCO.browns[(i + j) % DISCO.browns.length];
       pushScreen(buf, W / 2 + (base + x0) * LAND_PX, hy - (y0 + BG.yOffset) * LAND_PX, W / 2 + (base + x1) * LAND_PX, hy - (y1 + BG.yOffset) * LAND_PX, inten / 12, mask);
-    }
+    });
   });
+  buf.color = color;
   // Volcano: up to 5 ballistic particles thrown from the crater (ROM UpdateVolcano).
   volcano.timer -= dt;
   if (volcano.timer <= 0 && volcano.particles.length < 5) {
-    volcano.particles.push({ x: 0, y: 0, vx: (Math.random() - 0.5) * 60, vy: 80 + Math.random() * 60 });
+    volcano.particles.push({ x: 0, y: 0, vx: (Math.random() - 0.5) * 60, vy: 80 + Math.random() * 60, a: Math.random() * TAU });
     volcano.timer = 0.25 + Math.random() * 0.3;
   }
   volcano.particles = volcano.particles.filter((p) => {
     p.vy -= 120 * dt;
     p.x += p.vx * dt;
     p.y += p.vy * dt;
+    p.a += 2 * dt;
     if (p.y < 0) return false;
     let base = (((BG.volcanoX + p.x - scroll) % 4096) + 4096) % 4096;
     if (base > 2048) base -= 4096;
     const px = W / 2 + base * LAND_PX, py = hy - (BG.volcanoY + BG.yOffset + p.y) * LAND_PX;
-    // A zero-length stroke at the line sigma is a speck the half-res bloom cannot lift.
-    if (!screenCovered(px, py, mask)) buf.pushDot(px, py, px, py, 2.5);
+    if (fx) {
+      const R = DISCO.blossomPx, s = Math.sin(p.a) * R, c = Math.cos(p.a) * R;
+      buf.color = DISCO.blossom;
+      for (let k = 0; k < BLOSSOM.length - 1; k++) {
+        const [ax, ay] = BLOSSOM[k], [bx, by] = BLOSSOM[k + 1];
+        pushScreen(buf, px + ax * c - ay * s, py + ax * s + ay * c, px + bx * c - by * s, py + bx * s + by * c, 1.2, mask);
+      }
+      buf.color = color;
+    } else if (!screenCovered(px, py, mask)) {
+      // A zero-length stroke at the line sigma is a speck the half-res bloom cannot lift.
+      buf.pushDot(px, py, px, py, 2.5);
+    }
     return true;
   });
 }

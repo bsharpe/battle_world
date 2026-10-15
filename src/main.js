@@ -1,5 +1,5 @@
 import { createVectorRenderer, bitmapSize, fitFrame } from './render/gl.js?v=17';
-import { createLineBuffer, createDisco, updateDisco, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=19';
+import { createLineBuffer, createDisco, updateDisco, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=20';
 import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle } from './render/hud.js?v=13';
 import { createGame, step } from './game.js';
 import { createInput } from './input.js';
@@ -65,9 +65,10 @@ function frameAttract(inp, dt) {
   silence();
   const cam = makeCamera(0, 0, app.modeT * 0.15);
   const occ = worldOccluders(attractWorld, cam);
-  drawBackground(buf, cam, dt, occ);
-  if (app.phosphor === 'disco') updateDisco(disco, attractWorld, dt);
-  drawWorld(buf, attractWorld, cam, app.t, occ, app.phosphor === 'disco' ? disco : null);
+  const fx = app.phosphor === 'disco' ? disco : null;
+  if (fx) updateDisco(fx, attractWorld, dt);
+  drawBackground(buf, cam, dt, occ, fx);
+  drawWorld(buf, attractWorld, cam, app.t, occ, fx);
   drawTitle(buf);
   drawAttractText(buf, app.modeT, app.scores);
   if (inp.start) {
@@ -91,9 +92,10 @@ function framePlay(inp, dt) {
     missile: g.enemy?.kind === 'missile',
   });
   const occ = worldOccluders(g, cam);
-  drawBackground(buf, cam, dt, occ);
-  if (app.phosphor === 'disco') updateDisco(disco, g, dt);
-  drawWorld(buf, g, cam, app.t, occ, app.phosphor === 'disco' ? disco : null);
+  const fx = app.phosphor === 'disco' ? disco : null;
+  if (fx) updateDisco(fx, g, dt);
+  drawBackground(buf, cam, dt, occ, fx);
+  drawWorld(buf, g, cam, app.t, occ, fx);
   drawHud(buf, g, app.hud, Math.max(app.scores[0].score, g.score), app.t);
   if (g.over && (app.overFor += dt) > 3) {
     if (rankFor(app.scores, g.score) >= 0) {
