@@ -203,7 +203,7 @@ export function drawAttractText(buf, t, scores) {
 const textWidth = (text, scale = 0.5) => ((text.length - 1) * 24 + 16) * scale;
 
 // U (show-off saucers) and T (tread driving) are left off on purpose: hidden extras.
-const CONTROLS = ['ENTER START  SPACE FIRE  WASD OR ARROWS MOVE', 'C COLOR  F FULLSCREEN'];
+const CONTROLS = ['ENTER START    SPACE FIRE    WASD OR ARROWS MOVE', 'C COLOR    F FULLSCREEN'];
 
 const MODE_NAMES = { green: 'ORIGINAL MODE', amber: 'AMBER MODE', disco: 'DISCO MODE' };
 const BANNER = { scale: 1.5, y: -140, hold: 1.5, fade: 0.5 }; // y sits between the horizon and PRESS START
