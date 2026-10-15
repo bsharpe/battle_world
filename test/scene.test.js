@@ -307,3 +307,25 @@ test('your own tank leaves a trail you can see when you look back', () => {
   drawWorld(buf, g, makeCamera(player.x, player.z, Math.PI), 0, [], fx);
   assert.ok(buf.count > 0, 'the player left no trail behind');
 });
+
+test('a shell in flight throws off sparks that outlive it and then burn out', () => {
+  // The sparkle is a wake, not part of the shell: it hangs in the air behind the
+  // shot after the shell is gone, then burns out once the spark life is up.
+  const fx = createDisco();
+  const g = trailField({ x: 0, z: 0, facing: 0, alive: false });
+  const shell = { x: 0, z: 3000, vx: 0, vz: 16000 };
+  g.shells = [shell];
+  for (let i = 0; i < 30; i++) {
+    shell.z += 16000 / 60;
+    updateDisco(fx, g, 1 / 60);
+  }
+  g.shells = [];
+  const cam = makeCamera(0, 0, 0);
+  const now = createLineBuffer();
+  drawWorld(now, g, cam, 0, [], fx);
+  assert.ok(now.count > 0, 'the shell left no sparks behind');
+  updateDisco(fx, g, DISCO.sparkLife + 0.1);
+  const later = createLineBuffer();
+  drawWorld(later, g, cam, 0, [], fx);
+  assert.equal(later.count, 0, 'the sparks never burned out');
+});

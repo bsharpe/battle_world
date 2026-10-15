@@ -43,6 +43,12 @@ export const DISCO = {
   trailLife: 5,     // seconds for a trail point to fade out
   trailGauge: 460,  // half the distance between the treads (ROM tread meshes sit at x +-552)
   rainbowLen: 6000, // world units per full rainbow cycle
+  sparkRate: 40,    // sparks per second per shell
+  sparkLife: 0.5,   // seconds for a spark to fade out
+  sparkSpread: 600, // max sideways spark speed (world units/s)
+  sparkLift: [300, 1200], // min/max upward spark speed
+  sparkGravity: 3000, // world units/s^2
+  sparkStreak: 0.04, // seconds of travel each streak covers
 };
 
 export function nextPhosphor(name) {

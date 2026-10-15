@@ -214,7 +214,7 @@ export function drawBackground(buf, cam, dt, occ = NONE, fx = null) {
   });
 }
 
-export function createDisco() { return { obstacles: [], strands: [], t: 0 }; }
+export function createDisco() { return { obstacles: [], strands: [], sparks: [], t: 0 }; }
 
 const hueRgb = (h) => [0, 4, 2].map((k) => Math.min(1, Math.max(0, Math.abs(((h + k) % 6) - 3) - 1)));
 
@@ -242,6 +242,21 @@ export function updateDisco(fx, g, dt) {
   }
   for (const s of fx.strands) s.pts = s.pts.filter((p) => fx.t - p.born < DISCO.trailLife);
   fx.strands = fx.strands.filter((s) => s.pts.length || units.includes(s.unit));
+  const sy = -28 * MODEL_Y_SCALE, spread = DISCO.sparkSpread, [lo, hi] = DISCO.sparkLift;
+  for (const sh of g.shells) {
+    for (let n = Math.floor(DISCO.sparkRate * dt + Math.random()); n > 0; n--) {
+      fx.sparks.push({
+        x: sh.x, y: sy, z: sh.z,
+        vx: (Math.random() * 2 - 1) * spread + 0.05 * sh.vx, vy: lo + Math.random() * (hi - lo), vz: (Math.random() * 2 - 1) * spread + 0.05 * sh.vz,
+        born: fx.t, color: hueRgb(Math.random() * 6),
+      });
+    }
+  }
+  for (const p of fx.sparks) {
+    p.vy -= DISCO.sparkGravity * dt;
+    p.x = wrapCoord(p.x + p.vx * dt); p.y += p.vy * dt; p.z = wrapCoord(p.z + p.vz * dt);
+  }
+  fx.sparks = fx.sparks.filter((p) => fx.t - p.born < DISCO.sparkLife && p.y >= -320 * MODEL_Y_SCALE);
 }
 
 export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam), fx = null) {
@@ -259,6 +274,12 @@ export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam), fx =
         const k = sd * DISCO.trailGauge;
         segment(buf, cam, at(k * Math.cos(p.facing), -k * Math.sin(p.facing)), at(qx + k * Math.cos(q.facing), qz - k * Math.sin(q.facing)), bright, occ);
       }
+    }
+    for (const p of fx.sparks) {
+      buf.color = p.color;
+      const a = toView(cam, p.x, p.y, p.z), k = -DISCO.sparkStreak, dx = p.vx * k, dz = p.vz * k;
+      const b = [a[0] + dx * cam.cos - dz * cam.sin, a[1] + p.vy * k, a[2] + dx * cam.sin + dz * cam.cos];
+      segment(buf, cam, a, b, 1.5 * (1 - (fx.t - p.born) / DISCO.sparkLife), occ);
     }
     buf.color = base;
   }
