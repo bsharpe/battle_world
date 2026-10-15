@@ -1,6 +1,6 @@
 import { VG, GLYPHS, STRINGS } from '../data/rom.js';
-import { VIEW, RADAR, MESSAGES, HUD, ENEMY } from '../config.js';
-import { wrapAngle, bearing, delta } from '../math.js';
+import { VIEW, RADAR, MESSAGES, HUD, ENEMY, DISCO } from '../config.js';
+import { wrapAngle, bearing, delta, mulberry32, TAU } from '../math.js';
 
 const S = VIEW.height / 768, CX = VIEW.width / 2, CY = VIEW.height / 2;
 
@@ -76,7 +76,78 @@ export function updateHudState(h, g, dt) {
   return pinged;
 }
 
-export function drawHud(buf, g, h, highScore, t) {
+// Rings are strung between crack crossings so every chord starts and ends on a crack.
+export function glassWeb(seed) {
+  const rng = mulberry32(seed), spokes = [], rings = [], star = [];
+  for (let i = 0; i < DISCO.glassSpokes; i++) {
+    let ang = (i / DISCO.glassSpokes) * TAU + (rng() - 0.5) * 0.5, r = 0, x = 0, y = 0;
+    while (r < 480) {
+      r += 60 + rng() * 60;
+      ang += (rng() - 0.5) * 0.3;
+      const nx = Math.cos(ang) * r, ny = Math.sin(ang) * r;
+      spokes.push([x, y, nx, ny]);
+      x = nx; y = ny;
+    }
+  }
+  const cracks = [...VG.cracks.flat(), ...spokes];
+  DISCO.glassRings.forEach((r, k) => {
+    const pts = [];
+    for (const [x0, y0, x1, y1] of cracks) {
+      const dx = x1 - x0, dy = y1 - y0;
+      const a = dx * dx + dy * dy, b = 2 * (x0 * dx + y0 * dy), c = x0 * x0 + y0 * y0 - r * r;
+      const disc = b * b - 4 * a * c;
+      if (a === 0 || disc < 0) continue;
+      for (const t of [(-b - Math.sqrt(disc)) / (2 * a), (-b + Math.sqrt(disc)) / (2 * a)]) {
+        if (t >= 0 && t <= 1) pts.push([x0 + t * dx, y0 + t * dy]);
+      }
+    }
+    pts.sort((p, q) => Math.atan2(p[1], p[0]) - Math.atan2(q[1], q[0]));
+    pts.forEach(([ax, ay], i) => {
+      const [bx, by] = pts[(i + 1) % pts.length];
+      const gap = Math.abs(wrapAngle(Math.atan2(by, bx) - Math.atan2(ay, ax))), len = Math.hypot(bx - ax, by - ay);
+      if (gap > 1.75 || len < 2 || rng() < 0.25) return;
+      const s = 0.5 * (0.88 + rng() * 0.08), nudge = (rng() - 0.5) * 0.1;
+      rings.push([ax, ay, (ax + bx) * s - (by - ay) * nudge, (ay + by) * s + (bx - ax) * nudge, bx, by, k]);
+    });
+  });
+  for (let i = 0; i < 12; i++) {
+    const ang = (i / 12) * TAU + (rng() - 0.5) * 0.4, len = 12 + rng() * 28, bend = (rng() - 0.5) * 8;
+    const c = Math.cos(ang), s = Math.sin(ang), mx = c * len * 0.6 - s * bend, my = s * len * 0.6 + c * bend;
+    star.push([0, 0, mx, my], [mx, my, c * len, s * len]);
+  }
+  for (let i = 0; i < 8; i++) {
+    const a0 = (i / 8) * TAU, a1 = ((i + 1) / 8) * TAU;
+    star.push([Math.cos(a0) * 8, Math.sin(a0) * 8, Math.cos(a1) * 8, Math.sin(a1) * 8]);
+  }
+  const glints = Array.from({ length: 5 }, () => {
+    const [x0, y0, x1, y1] = cracks[Math.floor(rng() * cracks.length)], t = rng();
+    return [x0 + t * (x1 - x0), y0 + t * (y1 - y0), rng() * TAU];
+  });
+  return { spokes, rings, star, glints };
+}
+
+function drawGlass(buf, deadFor, t, seed) {
+  const color = buf.color, { spokes, rings, star, glints } = glassWeb(seed);
+  buf.color = DISCO.glass;
+  const groups = Math.floor(deadFor * 24) + 1, reach = 480 * Math.min(1, groups / VG.cracks.length);
+  VG.cracks.slice(0, groups).forEach((segs) => drawAvg(buf, segs));
+  // Spokes spread outward in step with the ROM cracks.
+  drawAvg(buf, spokes.filter(([x0, y0]) => Math.hypot(x0, y0) < reach).map((s) => [...s, 12]));
+  drawAvg(buf, star.map((s) => [...s, 12]));
+  for (const [ax, ay, mx, my, bx, by, k] of rings) {
+    if (deadFor > DISCO.glassRingDelay + k * DISCO.glassRingStep) drawAvg(buf, [[ax, ay, mx, my, 12], [mx, my, bx, by, 12]]);
+  }
+  if (deadFor > DISCO.glassRingDelay) {
+    buf.color = DISCO.white;
+    for (const [x, y, phase] of glints) {
+      const h = 10 * (0.6 + 0.4 * Math.sin(t * 6 + phase));
+      drawAvg(buf, [[x - h, y, x + h, y, 19], [x, y - h, x, y + h, 19]]);
+    }
+  }
+  buf.color = color;
+}
+
+export function drawHud(buf, g, h, highScore, t, fx = null) {
   const p = g.player, blinkOn = Math.floor(t * MESSAGES.blinkHz * 2) % 2 === 0;
   say(buf, 'SCORE', `SCORE${String(g.score).padStart(8)}`);
   say(buf, 'HIGH SCORE ', `HIGH SCORE ${String(highScore).padStart(8)}`);
@@ -97,6 +168,7 @@ export function drawHud(buf, g, h, highScore, t) {
   }
   if (g.blockedFor > 0) say(buf, 'MOTION BLOCKED');
   if (p.alive) drawAvg(buf, (g.enemy && onTarget(p, g.enemy) ? VG.reticle2 : VG.reticle1).segs);
+  else if (fx) drawGlass(buf, p.deadFor, t, ((Math.floor(p.x) * 73856093) ^ (Math.floor(p.z) * 19349663)) >>> 0);
   else VG.cracks.slice(0, Math.floor(p.deadFor * 24) + 1).forEach((segs) => drawAvg(buf, segs));
   if (g.over) {
     // Full glyph size. Every other message stays at the ROM half-glyph scale.

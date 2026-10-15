@@ -1,6 +1,6 @@
 import { createVectorRenderer, bitmapSize, fitFrame } from './render/gl.js?v=17';
 import { createLineBuffer, createDisco, updateDisco, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=22';
-import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle } from './render/hud.js?v=13';
+import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle } from './render/hud.js?v=15';
 import { createGame, step } from './game.js';
 import { createInput } from './input.js';
 import { createAudio } from './audio.js';
@@ -96,7 +96,7 @@ function framePlay(inp, dt) {
   if (fx) updateDisco(fx, g, dt);
   drawBackground(buf, cam, dt, occ, fx);
   drawWorld(buf, g, cam, app.t, occ, fx);
-  drawHud(buf, g, app.hud, Math.max(app.scores[0].score, g.score), app.t);
+  drawHud(buf, g, app.hud, Math.max(app.scores[0].score, g.score), app.t, fx);
   if (g.over && (app.overFor += dt) > 3) {
     if (rankFor(app.scores, g.score) >= 0) {
       app.entry = { letters: [0, 0, 0], pos: 0, armed: true };

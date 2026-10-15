@@ -49,6 +49,11 @@ export const DISCO = {
   sparkLift: [300, 1200], // min/max upward spark speed
   sparkGravity: 3000, // world units/s^2
   sparkStreak: 0.04, // seconds of travel each streak covers
+  glass: [0.8, 0.9, 1.0],        // blue-white crack color
+  glassRings: [70, 150, 260, 400], // ring radii (AVG units)
+  glassRingDelay: 0.35, // seconds until the first ring shows (ROM cracks finish at 8/24 s)
+  glassRingStep: 0.08,  // seconds between rings
+  glassSpokes: 10,      // extra jagged spokes: the ROM cracks cross each ring only 3-8 times, too few for a web
 };
 
 export function nextPhosphor(name) {

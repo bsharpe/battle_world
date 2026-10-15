@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { radarBlip, enemyDirection, enemyInRange, onTarget, sweepCrossed, drawHud, drawText, drawTitle, drawAttractText } from '../src/render/hud.js';
+import { radarBlip, enemyDirection, enemyInRange, onTarget, sweepCrossed, drawHud, drawText, drawTitle, drawAttractText, glassWeb } from '../src/render/hud.js';
 import { VIEW } from '../src/config.js';
-import { STRINGS } from '../src/data/rom.js';
+import { STRINGS, VG } from '../src/data/rom.js';
 
 const P = { x: 0, z: 0, facing: 0 };
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-6, `${a} != ${b}`);
@@ -159,4 +159,23 @@ test('drawHud score text matches the ROM field length', () => {
   const high = STRINGS.find((e) => e.text.startsWith('HIGH SCORE '));
   assert.equal(drawnTextLength(lines, score), score.text.length);
   assert.equal(drawnTextLength(lines, high), high.text.length);
+});
+
+test('disco glass rings start and end on a crack or spoke, so no ring floats loose', () => {
+  // A spiderweb fracture is rings strung between the radial cracks. A ring end
+  // that misses every crack reads as a scratch on the glass, not a break in it.
+  const onSeg = (x, y, [x0, y0, x1, y1]) => {
+    const dx = x1 - x0, dy = y1 - y0;
+    const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / (dx * dx + dy * dy)));
+    return Math.hypot(x - (x0 + t * dx), y - (y0 + t * dy)) < 1;
+  };
+  for (const seed of [1, 2, 3]) {
+    const { spokes, rings } = glassWeb(seed);
+    const cracks = [...VG.cracks.flat(), ...spokes];
+    const onCrack = (x, y) => cracks.some((s) => onSeg(x, y, s));
+    assert.ok(rings.length > 0, `seed ${seed} strung no rings`);
+    for (const [ax, ay, , , bx, by] of rings) {
+      assert.ok(onCrack(ax, ay) && onCrack(bx, by), `ring chord (${ax},${ay})-(${bx},${by}) floats off the cracks`);
+    }
+  }
 });
