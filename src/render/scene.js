@@ -300,12 +300,19 @@ function drawDiscoSaucer(buf, cam, s, t, occ) {
   for (const c of placeVerts(cam, { verts: cells }, s.x, s.y, s.z, s.spin)) {
     for (const [dx, dy] of [[60, 0], [0, 60]]) segment(buf, cam, [c[0] - dx, c[1] - dy, c[2]], [c[0] + dx, c[1] + dy, c[2]], 1.6, occ, 'saucer');
   }
-  // Each piece of a beam is a straight view-space lerp; brightness steps down source to tip.
-  const beam = (a, b, k, rgb) => {
+  // A light cone is rays fanned from the source to a ring: they overlap into a bright source and thin out
+  // toward the end. Each ray's pieces are straight view-space lerps whose brightness steps down source to tip.
+  const cone = (a, ends, k, rgb) => {
     buf.color = rgb;
     const n = DISCO.beamFade.length;
-    for (let p = 0; p < n; p++) segment(buf, cam, lerp3(a, b, p / n), lerp3(a, b, (p + 1) / n), k * DISCO.beamFade[p], occ, 'saucer');
+    for (const b of ends) {
+      for (let p = 0; p < n; p++) segment(buf, cam, lerp3(a, b, p / n), lerp3(a, b, (p + 1) / n), k * DISCO.coneRay * DISCO.beamFade[p], occ, 'saucer');
+    }
   };
+  const ring = (cx, cy, cz, r) => Array.from({ length: DISCO.coneRays }, (_, q) => {
+    const a = (q / DISCO.coneRays) * TAU;
+    return [cx + Math.cos(a) * r, cy, cz + Math.sin(a) * r];
+  });
   const step = Math.floor(t * DISCO.chaseRate), gy = (-320 * MODEL_Y_SCALE - s.y) / MODEL_Y_SCALE, lit = [], pts = [];
   for (let j = 0; j < 8; j++) {
     const age = ((step - j) % 8 + 8) % 8;
@@ -313,22 +320,21 @@ function drawDiscoSaucer(buf, cam, s, t, occ) {
     for (const m of [j, j + 8]) {
       const [rx, , rz] = RIM[m], r = Math.hypot(rx, rz), f = (r + DISCO.rimReach) / r, lx = rx * f, lz = rz * f;
       lit.push({ m, k: DISCO.chaseTail[age] });
-      pts.push(RIM[m], [lx, gy, lz]);
-      for (let q = 0; q < 8; q++) pts.push([lx + Math.cos((q / 8) * TAU) * DISCO.spotRadius, gy, lz + Math.sin((q / 8) * TAU) * DISCO.spotRadius]);
+      pts.push(RIM[m], ...ring(lx, gy, lz, DISCO.spotRadius));
     }
   }
-  const v = placeVerts(cam, { verts: pts }, s.x, s.y, s.z, s.spin);
+  const v = placeVerts(cam, { verts: pts }, s.x, s.y, s.z, s.spin), stride = 1 + DISCO.coneRays;
   lit.forEach(({ m, k }, i) => {
-    const o = i * 10, rgb = hueRgb(((m / 16) * 6 + t * DISCO.hueCycle) % 6);
-    beam(v[o], v[o + 1], k, rgb);
-    buf.color = rgb;
-    for (let q = 0; q < 8; q++) segment(buf, cam, v[o + 2 + q], v[o + 2 + (q + 1) % 8], k * 0.8, occ);
+    const o = i * stride, spot = v.slice(o + 1, o + stride), rgb = hueRgb(((m / 16) * 6 + t * DISCO.hueCycle) % 6);
+    cone(v[o], spot, k, rgb);
+    spot.forEach((p, q) => segment(buf, cam, p, spot[(q + 1) % spot.length], k * 0.8, occ));
   });
+  // The sky ring is level; at this tilt that is close enough to square-on to read as a cone.
   const sin = Math.sin(DISCO.skyTilt) * DISCO.skyLen, cos = Math.cos(DISCO.skyTilt) * DISCO.skyLen;
   for (let i = 0; i < DISCO.skyBeams; i++) {
     const a = (i / DISCO.skyBeams) * TAU + t * DISCO.beamSpin, dx = Math.sin(a) * sin, dz = Math.cos(a) * sin;
     const tip = [top[0][0] + dx * cam.cos - dz * cam.sin, top[0][1] + cos, top[0][2] + dx * cam.sin + dz * cam.cos];
-    beam(top[0], tip, 1, hueRgb(((i / DISCO.skyBeams) * 6 + t * DISCO.hueCycle) % 6));
+    cone(top[0], ring(tip[0], tip[1], tip[2], DISCO.skyLen * DISCO.skyCone), 1, hueRgb(((i / DISCO.skyBeams) * 6 + t * DISCO.hueCycle) % 6));
   }
   const led = placeVerts(cam, LEDS, s.x, s.y, s.z, s.spin);
   for (let k = 0; k < DISCO.leds; k++) {

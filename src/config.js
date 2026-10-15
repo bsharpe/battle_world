@@ -54,8 +54,10 @@ export const DISCO = {
   chaseRate: 8,                  // rim beam pairs stepped per second
   chaseTail: [1, 0.55, 0.25],    // brightness of the lit pair and the two before it
   rimReach: 2000,                // ground distance past the rim where rim beams land
-  spotRadius: 220,               // light spot ring on the ground
+  spotRadius: 500,               // pool of light where a rim cone meets the ground
   skyBeams: 5, skyTilt: 0.44, skyLen: 9000, // beams from the apex: count, lean from vertical (rad), length
+  skyCone: 0.12,                 // sky cone radius at its tip, as a fraction of its length
+  coneRays: 8, coneRay: 0.5,     // rays per light cone, and each ray's share of the beam brightness
   beamSpin: 1.2,                 // rad/s the sky beams sweep
   beamFade: [1.2, 0.9, 0.6, 0.3], // piece brightness, source to tip
   hueCycle: 1,                   // hue units/s every beam drifts (full rainbow every 6 s)
