@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SHAPES } from '../src/data/rom.js';
 import { VIEW, MODEL_Y_SCALE, DISCO } from '../src/config.js';
 import { delta } from '../src/math.js';
-import { createLineBuffer, makeCamera, drawModel, drawWorld, drawBackground, worldOccluders, modelOccluders, createDisco, updateDisco } from '../src/render/scene.js';
+import { createLineBuffer, makeCamera, drawModel, drawWorld, drawBackground, worldOccluders, modelOccluders, createDisco, updateDisco, mirrorSpecks } from '../src/render/scene.js';
 
 // A segment crosses the view when it covers the full width or height and still
 // meets the rectangle. A short edge that merely sits inside does not.
@@ -347,4 +347,33 @@ test('the saucer throws mirror-ball beams that sweep around it', () => {
   const before = new Set(segKeys(now));
   const moved = segKeys(later).filter((k) => !before.has(k));
   assert.ok(moved.length >= DISCO.ballCones, `only ${moved.length} beam pieces moved; the beams are not sweeping`);
+});
+
+test('mirror-ball specks land on a box beside the ball and never on the ground behind it', () => {
+  // The ball throws light, so a box in the way catches specks on its wall and
+  // casts a shadow: no speck may reach the ground by passing through the box.
+  const g = trailField({ x: 0, z: 0, facing: 0, alive: false });
+  g.obstacles = [{ type: 1, x: 1500, z: 0, facing: 0 }]; // tallBox: x 988..2012, z ±512, y −640..640
+  g.saucers = [{ x: 0, y: 0, z: 0, vx: 0, vz: 0, retarget: 0, spin: 0 }];
+  const cam = makeCamera(0, 0, 0); // facing 0 at the origin: view space is world space
+  const through = ([x0, y0, z0], [x1, y1, z1]) => {
+    let lo = 0, hi = 1;
+    for (const [a, b, min, max] of [[x0, x1, 988, 2012], [y0, y1, -640, 640], [z0, z1, -512, 512]]) {
+      const d = b - a;
+      if (Math.abs(d) < 1e-9) { if (a < min || a > max) return false; continue; }
+      let t0 = (min - a) / d, t1 = (max - a) / d;
+      if (t0 > t1) [t0, t1] = [t1, t0];
+      lo = Math.max(lo, t0); hi = Math.min(hi, t1);
+      if (lo > hi) return false;
+    }
+    return hi - lo > 1e-3;
+  };
+  let onBox = 0;
+  for (const t of [0, 0.7, 1.4]) {
+    for (const { p, owner } of mirrorSpecks(g, cam, g.saucers[0], t, 'saucer:0')) {
+      if (owner === 'obs:0') { onBox++; continue; }
+      assert.ok(!through([0, DISCO.ballY, 0], p), `a speck at (${p.map(Math.round)}) reached the ground through the box`);
+    }
+  }
+  assert.ok(onBox > 0, 'no speck landed on the box');
 });

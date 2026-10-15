@@ -61,7 +61,7 @@ export const DISCO = {
   ballCones: 10,                 // light cones thrown from facets
   coneLats: [-0.9, -0.45, 0.5],  // facet latitudes (rad) the cones cycle through; negative lands on the ground
   cableLen: 12000,               // cable from the top of the ball into the sky
-  specks: 48, speckMax: 1.2, speckSize: 70, // ground light specks: count, max angle from straight down (rad), cross half-size
+  specks: 96, speckMax: 1.8, speckSize: 70, speckRadius: 6000, // light specks: count, max angle from straight down (rad), cross half-size, reach
   hueCycle: 1,                   // hue units/s every beam drifts (full rainbow every 6 s)
   sparkGravity: 3000, // world units/s^2
   sparkStreak: 0.04, // seconds of travel each streak covers

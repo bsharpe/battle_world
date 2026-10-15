@@ -280,12 +280,56 @@ HULL.set(BALL_OCC, hullFaces(BALL_OCC.verts));
 const SPECKS = (() => {
   const rng = mulberry32(99);
   return Array.from({ length: DISCO.specks }, () => {
-    const a = 0.25 + rng() * (DISCO.speckMax - 0.25), b = rng() * TAU;
+    const a = 0.15 + rng() * (DISCO.speckMax - 0.15), b = rng() * TAU;
     return [Math.sin(a) * Math.sin(b), -Math.cos(a), Math.sin(a) * Math.cos(b)];
   });
 })();
 
-function drawMirrorBall(buf, cam, s, t, occ, owner) {
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const norm = (a) => { const l = Math.hypot(...a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+
+// Where each light speck of a ball lands: the first of ground, obstacle, enemy or another ball its ray meets. View space.
+export function mirrorSpecks(g, cam, s, t, self) {
+  const c = toView(cam, s.x, s.y + DISCO.ballY, s.z);
+  if (c[2] > VIEW.far || c[2] < -4000) return [];
+  const reach = DISCO.speckRadius, tris = [];
+  const add = (shape, x, y, z, facing, owner) => {
+    if (dist(s.x, s.z, x, z) >= reach + 1500) return;
+    const v = placeVerts(cam, shape, x, y, z, facing);
+    if (v) for (const [i, j, k] of HULL.get(shape)) tris.push([v[i], v[j], v[k], owner]);
+  };
+  g.obstacles.forEach((o, i) => add(SHAPES[OBSTACLE_SHAPES[o.type]], o.x, 0, o.z, o.facing, `obs:${i}`));
+  const e = g.enemy;
+  if (e && ENEMY_SHAPES[e.kind]) add(SHAPES[ENEMY_SHAPES[e.kind]], e.x, e.y, e.z, e.facing, 'enemy');
+  g.saucers.forEach((o, j) => { if (`saucer:${j}` !== self) add(BALL_OCC, o.x, o.y, o.z, 0, `saucer:${j}`); });
+  const ang = t * DISCO.ballSpin, sn = Math.sin(ang), cs = Math.cos(ang), gy = -320 * MODEL_Y_SCALE;
+  const out = [];
+  SPECKS.forEach(([lx, ly, lz], k) => {
+    const dx = lx * cs + lz * sn, dy = ly, dz = -lx * sn + lz * cs;
+    const d = [dx * cam.cos - dz * cam.sin, dy, dx * cam.sin + dz * cam.cos];
+    let best = reach, t1 = [1, 0, 0], t2 = [0, 0, 1], owner = null, hit = false;
+    if (d[1] < 0) { const tg = (gy - c[1]) / d[1]; if (tg < best) { best = tg; hit = true; } }
+    for (const [a, b, q, o] of tris) {
+      const e1 = sub(b, a), e2 = sub(q, a), pv = cross(d, e2), det = dot(e1, pv);
+      if (Math.abs(det) < 1e-9) continue;
+      const tv = sub(c, a), u = dot(tv, pv) / det;
+      if (u < 0 || u > 1) continue;
+      const qv = cross(tv, e1), v = dot(d, qv) / det;
+      if (v < 0 || u + v > 1) continue;
+      const th = dot(e2, qv) / det;
+      if (th <= DISCO.ballR || th >= best) continue;
+      best = th; hit = true; owner = o; t1 = norm(e1); t2 = norm(cross(cross(e1, e2), t1));
+    }
+    if (!hit) return;
+    const m = best - 4;
+    out.push({ p: [c[0] + d[0] * m, c[1] + d[1] * m, c[2] + d[2] * m], t1, t2, owner, k });
+  });
+  return out;
+}
+
+function drawMirrorBall(buf, cam, g, s, t, occ, owner) {
   const [vx, vy, vz] = toView(cam, s.x, s.y, s.z);
   if (vz < -4000 || vz > VIEW.far) return;
   const at = (dx, dy, dz) => [vx + dx * cam.cos - dz * cam.sin, vy + dy, vz + dx * cam.sin + dz * cam.cos];
@@ -316,12 +360,10 @@ function drawMirrorBall(buf, cam, s, t, occ, owner) {
     for (const b of ring) for (let p = 0; p < n; p++) segment(buf, cam, lerp3(a, b, p / n), lerp3(a, b, (p + 1) / n), DISCO.coneRay * DISCO.beamFade[p], occ, owner);
     if (ground) ring.forEach((p, q) => segment(buf, cam, p, ring[(q + 1) % ring.length], 0.8, occ));
   }
-  SPECKS.forEach((v, j) => {
-    const d = turn(v), k = (gy - by) / d[1], x = d[0] * k, z = d[2] * k;
-    buf.color = hueRgb(((j / DISCO.specks) * 6 + t * DISCO.hueCycle) % 6).map((c) => (c + 1) / 2);
-    segment(buf, cam, at(x - DISCO.speckSize, gy, z), at(x + DISCO.speckSize, gy, z), 0.9, occ);
-    segment(buf, cam, at(x, gy, z - DISCO.speckSize), at(x, gy, z + DISCO.speckSize), 0.9, occ);
-  });
+  for (const { p, t1, t2, owner: on, k } of mirrorSpecks(g, cam, s, t, owner)) {
+    buf.color = hueRgb(((k / DISCO.specks) * 6 + t * DISCO.hueCycle) % 6).map((c) => (c + 1) / 2);
+    for (const u of [t1, t2]) segment(buf, cam, [p[0] - u[0] * DISCO.speckSize, p[1] - u[1] * DISCO.speckSize, p[2] - u[2] * DISCO.speckSize], [p[0] + u[0] * DISCO.speckSize, p[1] + u[1] * DISCO.speckSize, p[2] + u[2] * DISCO.speckSize], 0.9, occ, on);
+  }
 }
 
 export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam), fx = null) {
@@ -378,7 +420,7 @@ export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam), fx =
     buf.color = base;
   }
   g.saucers.forEach((s, i) => {
-    if (fx) drawMirrorBall(buf, cam, s, t, occ, `saucer:${i}`);
+    if (fx) drawMirrorBall(buf, cam, g, s, t, occ, `saucer:${i}`);
     else drawModel(buf, cam, SHAPES.saucer, s.x, s.y, s.z, s.spin, 1, occ, `saucer:${i}`);
     buf.color = base;
   });
