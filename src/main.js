@@ -1,4 +1,4 @@
-import { createVectorRenderer, bitmapSize, fitFrame } from './render/gl.js?v=14';
+import { createVectorRenderer, bitmapSize, fitFrame } from './render/gl.js?v=15';
 import { createLineBuffer, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=17';
 import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle } from './render/hud.js?v=13';
 import { createGame, step } from './game.js';

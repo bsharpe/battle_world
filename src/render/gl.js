@@ -71,7 +71,7 @@ out vec4 o;
 void main() {
   float v = texture(glow, uv).r + texture(bloom, uv).r * bloomK + texture(text, uv).r;
   vec3 tint = (1.0 - uv.y) * res.y < redLine ? red : green;
-  o = vec4(1.0 - exp(-v * tint * 2.0), 1.0);
+  o = vec4(1.0 - exp(-v * tint * 1.5), 1.0);
 }`;
 
 // Bitmap is capped at 2× the 1920×1080 picture so a retina CSS fit is a downscale, not an upscale.
@@ -88,7 +88,7 @@ export function fitFrame(viewW, viewH, vw, vh) {
 
 export function createVectorRenderer(canvas, opts = {}) {
   const o = {
-    lineHalfWidth: 2.5, sigma: 0.85, persistence: 0.035, bloom: 0.25, redLinePx: 216,
+    lineHalfWidth: 3.5, sigma: 1.1, persistence: 0.02, bloom: 0.25, redLinePx: 216,
     green: [0.25, 1.0, 0.35], red: [1.0, 0.22, 0.18], maxLines: 32768,
     viewWidth: canvas.width, viewHeight: canvas.height, ...opts,
   };
