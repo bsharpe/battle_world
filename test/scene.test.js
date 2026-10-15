@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SHAPES } from '../src/data/rom.js';
-import { VIEW, MODEL_Y_SCALE } from '../src/config.js';
+import { VIEW, MODEL_Y_SCALE, DISCO } from '../src/config.js';
 import { delta } from '../src/math.js';
-import { createLineBuffer, makeCamera, drawModel, drawWorld, drawBackground, worldOccluders, modelOccluders } from '../src/render/scene.js';
+import { createLineBuffer, makeCamera, drawModel, drawWorld, drawBackground, worldOccluders, modelOccluders, createDisco, updateDisco } from '../src/render/scene.js';
 
 // A segment crosses the view when it covers the full width or height and still
 // meets the rectangle. A short edge that merely sits inside does not.
@@ -243,4 +243,67 @@ test('a box on the world seam does not mask the whole horizon', () => {
   drawBackground(buf, cam, 0, worldOccluders(g, cam));
   const hy = cam.horizonY;
   assert.ok(covers(buf, 8, hy) || covers(buf, VIEW.width - 8, hy), 'the seam box masked the whole horizon');
+});
+
+// Disco tread trails. A field with no obstacles, saucer, shells or debris draws
+// nothing but the tanks, so once the enemy is gone every line is trail.
+const trailField = (player) => ({ obstacles: [], enemy: null, saucer: null, shells: [], debris: [], player });
+
+function drive(fx, g, unit, dz, seconds, steps = 40) {
+  for (let i = 0; i < steps; i++) {
+    unit.z += dz / steps;
+    updateDisco(fx, g, seconds / steps);
+  }
+}
+
+test('a tank leaves a trail that outlives it and then fades away', () => {
+  // The marks are the tank's history, not its body: they stay on the ground after
+  // the tank is destroyed, and they clear themselves once the trail life is up.
+  const fx = createDisco();
+  const g = trailField({ x: 0, z: 0, facing: 0, alive: false });
+  const enemy = { kind: 'tank', x: 0, y: 0, z: 4000, facing: 0, treadPhase: 0 };
+  g.enemy = enemy;
+  drive(fx, g, enemy, 3000, 1);
+  g.enemy = null;
+  const cam = makeCamera(0, 0, 0);
+  const now = createLineBuffer();
+  drawWorld(now, g, cam, 0, [], fx);
+  assert.ok(now.count > 0, 'the trail vanished with the tank');
+  updateDisco(fx, g, DISCO.trailLife + 0.1);
+  const later = createLineBuffer();
+  drawWorld(later, g, cam, 0, [], fx);
+  assert.equal(later.count, 0, 'the trail never faded');
+});
+
+test('a tank that jumps across the field does not draw a trail line across the gap', () => {
+  // Respawning teleports a tank. Joining its old marks to its new ones would
+  // paint a stripe across the battlefield that no tread ever made.
+  const fx = createDisco();
+  const g = trailField({ x: 0, z: 0, facing: 0, alive: false });
+  const enemy = { kind: 'tank', x: -3000, y: 0, z: 5000, facing: 0, treadPhase: 0 };
+  g.enemy = enemy;
+  drive(fx, g, enemy, 2000, 0.7);
+  enemy.x = 3000;
+  enemy.z = 5000;
+  drive(fx, g, enemy, 2000, 0.7);
+  g.enemy = null;
+  const buf = createLineBuffer();
+  drawWorld(buf, g, makeCamera(0, 0, 0), 0, [], fx);
+  assert.ok(buf.count > 0, 'neither stretch of trail was drawn');
+  const mid = VIEW.width / 2;
+  for (let i = 0; i < buf.count; i++) {
+    const o = i * 5;
+    const lo = Math.min(buf.data[o], buf.data[o + 2]), hi = Math.max(buf.data[o], buf.data[o + 2]);
+    assert.ok(!(lo < mid - 100 && hi > mid + 100), `a trail line bridges the jump (${lo}..${hi})`);
+  }
+});
+
+test('your own tank leaves a trail you can see when you look back', () => {
+  const fx = createDisco();
+  const player = { x: 0, z: 0, facing: 0, alive: true };
+  const g = trailField(player);
+  drive(fx, g, player, 3000, 1);
+  const buf = createLineBuffer();
+  drawWorld(buf, g, makeCamera(player.x, player.z, Math.PI), 0, [], fx);
+  assert.ok(buf.count > 0, 'the player left no trail behind');
 });

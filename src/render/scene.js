@@ -1,6 +1,6 @@
 import { SHAPES, VG } from '../data/rom.js';
 import { VIEW, MODEL_Y_SCALE, BG, DISCO } from '../config.js';
-import { TAU, wrapCoord, delta } from '../math.js';
+import { TAU, wrapCoord, delta, dist } from '../math.js';
 import { hullFaces, faceOccluder, visibleSpans, clipScreenLine, screenCovered, silhouettes, mergeCoplanar } from './occlude.js?v=17';
 
 export function createLineBuffer(max = 32768) {
@@ -214,7 +214,9 @@ export function drawBackground(buf, cam, dt, occ = NONE, fx = null) {
   });
 }
 
-export function createDisco() { return { obstacles: [] }; }
+export function createDisco() { return { obstacles: [], strands: [], t: 0 }; }
+
+const hueRgb = (h) => [0, 4, 2].map((k) => Math.min(1, Math.max(0, Math.abs(((h + k) % 6) - 3) - 1)));
 
 // Math.random, not the game rng: colors must not touch gameplay.
 export function updateDisco(fx, g, dt) {
@@ -222,13 +224,44 @@ export function updateDisco(fx, g, dt) {
     const s = fx.obstacles[i] ??= { color: null, timer: 0 };
     if ((s.timer -= dt) > 0) return;
     const h = Math.random() * 6;
-    s.color = [0, 4, 2].map((k) => Math.min(1, Math.max(0, Math.abs(((h + k) % 6) - 3) - 1)));
+    s.color = hueRgb(h);
     s.timer = DISCO.flipMin + Math.random() * (DISCO.flipMax - DISCO.flipMin);
   });
+  fx.t += dt;
+  const units = [];
+  if (g.player.alive) units.push(g.player);
+  if (g.enemy && (g.enemy.kind === 'tank' || g.enemy.kind === 'super')) units.push(g.enemy);
+  for (const u of units) {
+    let s = fx.strands.find((k) => k.unit === u);
+    if (s && s.pts.length && dist(s.pts.at(-1).x, s.pts.at(-1).z, u.x, u.z) > DISCO.trailBreak) { s.unit = null; s = null; }
+    if (!s) fx.strands.push(s = { unit: u, travel: 0, pts: [] });
+    const last = s.pts.at(-1), d = last ? dist(last.x, last.z, u.x, u.z) : 0;
+    if (last && d < DISCO.trailStep) continue;
+    s.travel += d;
+    s.pts.push({ x: u.x, z: u.z, facing: u.facing, born: fx.t, hue: (s.travel / DISCO.rainbowLen % 1) * 6 });
+  }
+  for (const s of fx.strands) s.pts = s.pts.filter((p) => fx.t - p.born < DISCO.trailLife);
+  fx.strands = fx.strands.filter((s) => s.pts.length || units.includes(s.unit));
 }
 
 export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam), fx = null) {
   const base = buf.color;
+  if (fx) {
+    const y = -320 * MODEL_Y_SCALE;
+    for (const { pts } of fx.strands) for (let i = 1; i < pts.length; i++) {
+      const p = pts[i - 1], q = pts[i], bright = 1 - (fx.t - p.born) / DISCO.trailLife;
+      buf.color = hueRgb(p.hue);
+      const [ax, , az] = toView(cam, p.x, y, p.z);
+      const [qx, qz] = delta(p.x, p.z, q.x, q.z);
+      // Offsets from p, not toView per end: a segment straddling ±32768 must not tear.
+      const at = (dx, dz) => [ax + dx * cam.cos - dz * cam.sin, y, az + dx * cam.sin + dz * cam.cos];
+      for (const sd of [-1, 1]) {
+        const k = sd * DISCO.trailGauge;
+        segment(buf, cam, at(k * Math.cos(p.facing), -k * Math.sin(p.facing)), at(qx + k * Math.cos(q.facing), qz - k * Math.sin(q.facing)), bright, occ);
+      }
+    }
+    buf.color = base;
+  }
   g.obstacles.forEach((o, i) => {
     if (fx) buf.color = fx.obstacles[i]?.color ?? base;
     drawModel(buf, cam, SHAPES[OBSTACLE_SHAPES[o.type]], o.x, 0, o.z, o.facing, 1, occ, `obs:${i}`);

@@ -38,6 +38,11 @@ export const DISCO = {
   moon: [1.0, 0.6, 0.05],     // cheddar
   browns: [[0.9, 0.45, 0.15], [0.7, 0.35, 0.12], [1.0, 0.62, 0.3], [0.55, 0.28, 0.1]],
   blossom: [1.0, 0.45, 0.7], blossomPx: 10,
+  trailStep: 200,   // world units between recorded trail points
+  trailBreak: 2000, // a jump longer than this starts a new strand
+  trailLife: 5,     // seconds for a trail point to fade out
+  trailGauge: 460,  // half the distance between the treads (ROM tread meshes sit at x +-552)
+  rainbowLen: 6000, // world units per full rainbow cycle
 };
 
 export function nextPhosphor(name) {
