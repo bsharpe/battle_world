@@ -241,6 +241,10 @@ export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam), fx =
     if (d.burst) {
       // Saucer disc is model y=80. The ring replaces the craft on that plane.
       drawModel(buf, cam, BURST[d.frame], d.x, d.y + 80 * MODEL_Y_SCALE, d.z, 0, 1.6, occ);
-    } else drawModel(buf, cam, SHAPES[d.shape], d.x, d.y, d.z, d.facing, Math.min(1, d.life), occ);
+    } else {
+      if (fx && (d.kind === 'tank' || d.kind === 'super')) buf.color = DISCO.white;
+      drawModel(buf, cam, SHAPES[d.shape], d.x, d.y, d.z, d.facing, Math.min(1, d.life), occ);
+      buf.color = base;
+    }
   }
 }

@@ -188,7 +188,7 @@ function updateDeath(g, dt) {
 function spawnDebris(g, e) {
   for (const shape of CHUNKS[e.kind]) {
     g.debris.push({
-      shape, x: e.x, y: e.y, z: e.z,
+      shape, kind: e.kind, x: e.x, y: e.y, z: e.z,
       vx: (g.rng() - 0.5) * 3000, vy: 1500 + g.rng() * 2500, vz: (g.rng() - 0.5) * 3000,
       facing: g.rng() * TAU, spin: (g.rng() - 0.5) * 8, life: 2,
     });
