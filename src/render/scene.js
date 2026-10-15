@@ -130,7 +130,7 @@ export function modelOccluders(cam, shape, x, y, z, facing, owner) {
   return mergeCoplanar(out);
 }
 
-export function worldOccluders(g, cam) {
+export function worldOccluders(g, cam, fx = null) {
   const out = [];
   g.obstacles.forEach((o, i) => {
     const shape = SHAPES[OBSTACLE_SHAPES[o.type]];
@@ -138,7 +138,7 @@ export function worldOccluders(g, cam) {
   });
   const e = g.enemy;
   if (e && ENEMY_SHAPES[e.kind]) out.push(...modelOccluders(cam, SHAPES[ENEMY_SHAPES[e.kind]], e.x, e.y, e.z, e.facing, 'enemy'));
-  g.saucers.forEach((s, i) => out.push(...modelOccluders(cam, SHAPES.saucer, s.x, s.y, s.z, s.spin, `saucer:${i}`)));
+  g.saucers.forEach((s, i) => out.push(...(fx ? modelOccluders(cam, BALL_OCC, s.x, s.y, s.z, 0, `saucer:${i}`) : modelOccluders(cam, SHAPES.saucer, s.x, s.y, s.z, s.spin, `saucer:${i}`))));
   return out;
 }
 
@@ -258,88 +258,70 @@ export function updateDisco(fx, g, dt) {
   fx.sparks = fx.sparks.filter((p) => fx.t - p.born < DISCO.sparkLife && p.y >= -320 * MODEL_Y_SCALE);
 }
 
-// Disco saucer geometry, model space. Rim/bottom octagons are subdivided to 16 so beams and facets sit between the ROM verts.
+// Disco mirror ball. Model y is view y / MODEL_Y_SCALE, so the sphere is round once placeVerts scales y back up.
 const lerp3 = (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
-const octo16 = (first) => Array.from({ length: 16 }, (_, m) => {
-  const v = SHAPES.saucer.verts, i = first + (m >> 1);
-  return m % 2 ? lerp3(v[i], v[first + ((m + 1) >> 1) % 8], 0.5) : v[i];
-});
-const RIM = octo16(8), BOT = octo16(0), APEX = SHAPES.saucer.verts[16];
-const FACETS = { verts: [APEX], segs: [] };
+const sphere = (lons, lats) => {
+  const verts = [], pt = (lon, lat) => [DISCO.ballR * Math.cos(lat) * Math.sin(lon), (DISCO.ballY + DISCO.ballR * Math.sin(lat)) / MODEL_Y_SCALE, DISCO.ballR * Math.cos(lat) * Math.cos(lon)];
+  verts.push(pt(0, Math.PI / 2), pt(0, -Math.PI / 2));
+  for (const lat of lats) for (let m = 0; m < lons; m++) verts.push(pt((m / lons) * TAU, lat));
+  return verts;
+};
+const BALL = { verts: sphere(DISCO.ballGrid[0], Array.from({ length: DISCO.ballGrid[1] - 1 }, (_, k) => Math.PI / 2 - ((k + 1) * Math.PI) / DISCO.ballGrid[1])), segs: [] };
 {
-  const ring = (pts) => {
-    const n = FACETS.verts.length;
-    FACETS.verts.push(...pts);
-    pts.forEach((_, m) => FACETS.segs.push([n + m, n + (m + 1) % 16, 14]));
-  };
-  for (let m = 0; m < 16; m++) {
-    FACETS.verts.push(RIM[m], BOT[m]);
-    FACETS.segs.push([0, 1 + 2 * m, 14], [1 + 2 * m, 2 + 2 * m, 14]);
+  const n = DISCO.ballGrid[0], rings = DISCO.ballGrid[1] - 1, at = (r, m) => 2 + r * n + m;
+  for (let m = 0; m < n; m++) {
+    BALL.segs.push([0, at(0, m), 14], [at(rings - 1, m), 1, 14]);
+    for (let r = 1; r < rings; r++) BALL.segs.push([at(r - 1, m), at(r, m), 14]);
   }
-  for (const f of DISCO.facetRings) ring(RIM.map((r) => lerp3(r, APEX, f)));
-  ring(RIM.map((r, m) => lerp3(r, BOT[m], 0.5)));
+  for (let r = 0; r < rings; r++) for (let m = 0; m < n; m++) BALL.segs.push([at(r, m), at(r, (m + 1) % n), 14]);
 }
-const LEDS = { verts: [] };
-for (let e = 0; e < 8; e++) {
-  const a = SHAPES.saucer.verts[8 + e], b = SHAPES.saucer.verts[8 + (e + 1) % 8];
-  for (let q = 0; q < 4; q++) LEDS.verts.push(lerp3(a, b, (q + 0.3) / 4), lerp3(a, b, (q + 0.7) / 4));
-}
+const BALL_OCC = { verts: sphere(8, [0.6, -0.6]), segs: [] };
+HULL.set(BALL_OCC, hullFaces(BALL_OCC.verts));
+const SPECKS = (() => {
+  const rng = mulberry32(99);
+  return Array.from({ length: DISCO.specks }, () => {
+    const a = 0.25 + rng() * (DISCO.speckMax - 0.25), b = rng() * TAU;
+    return [Math.sin(a) * Math.sin(b), -Math.cos(a), Math.sin(a) * Math.cos(b)];
+  });
+})();
 
-function drawDiscoSaucer(buf, cam, s, t, occ, owner) {
-  const top = placeVerts(cam, { verts: [APEX] }, s.x, s.y, s.z, s.spin);
-  if (!top) return;
-  drawModel(buf, cam, FACETS, s.x, s.y, s.z, s.spin, 1, occ, owner);
-  const L = DISCO.glintEvery, rng = mulberry32(Math.floor(t / L) + 1);
-  const bands = [0, ...DISCO.facetRings, 1], cells = [];
-  for (let i = 0; i < DISCO.glints; i++) {
-    const m = Math.floor(rng() * 16), b = Math.floor(rng() * (bands.length - 1));
-    cells.push(lerp3(lerp3(RIM[m], RIM[(m + 1) % 16], 0.5), APEX, (bands[b] + bands[b + 1]) / 2));
-  }
+function drawMirrorBall(buf, cam, s, t, occ, owner) {
+  const [vx, vy, vz] = toView(cam, s.x, s.y, s.z);
+  if (vz < -4000 || vz > VIEW.far) return;
+  const at = (dx, dy, dz) => [vx + dx * cam.cos - dz * cam.sin, vy + dy, vz + dx * cam.sin + dz * cam.cos];
+  const ang = t * DISCO.ballSpin, sn = Math.sin(ang), cs = Math.cos(ang);
+  const turn = ([x, y, z]) => [x * cs + z * sn, y, -x * sn + z * cs];
+  const { ballY: by, ballR: R } = DISCO, gy = -320 * MODEL_Y_SCALE - s.y;
+  buf.color = DISCO.silver;
+  drawModel(buf, cam, BALL, s.x, s.y, s.z, ang, 1, occ, owner);
+  segment(buf, cam, at(0, by + R, 0), at(0, by + R + DISCO.cableLen, 0), 0.6, occ, owner);
+  const rng = mulberry32(Math.floor(t / DISCO.glintEvery) + 1), [lons, bands] = DISCO.ballGrid;
   buf.color = DISCO.white;
-  for (const c of placeVerts(cam, { verts: cells }, s.x, s.y, s.z, s.spin)) {
+  for (let i = 0; i < DISCO.glints; i++) {
+    const lon = ((Math.floor(rng() * lons) + 0.5) / lons) * TAU, lat = -Math.PI / 2 + ((Math.floor(rng() * bands) + 0.5) * Math.PI) / bands;
+    const [x, y, z] = turn([Math.cos(lat) * Math.sin(lon), Math.sin(lat), Math.cos(lat) * Math.cos(lon)]);
+    const c = at(x * R, by + y * R, z * R);
     for (const [dx, dy] of [[60, 0], [0, 60]]) segment(buf, cam, [c[0] - dx, c[1] - dy, c[2]], [c[0] + dx, c[1] + dy, c[2]], 1.6, occ, owner);
   }
-  // A light cone is rays fanned from the source to a ring: they overlap into a bright source and thin out
+  // A light cone is rays fanned from the facet to a ring: they overlap into a bright source and thin out
   // toward the end. Each ray's pieces are straight view-space lerps whose brightness steps down source to tip.
-  const cone = (a, ends, k, rgb) => {
-    buf.color = rgb;
-    const n = DISCO.beamFade.length;
-    for (const b of ends) {
-      for (let p = 0; p < n; p++) segment(buf, cam, lerp3(a, b, p / n), lerp3(a, b, (p + 1) / n), k * DISCO.coneRay * DISCO.beamFade[p], occ, owner);
-    }
-  };
-  const ring = (cx, cy, cz, r) => Array.from({ length: DISCO.coneRays }, (_, q) => {
-    const a = (q / DISCO.coneRays) * TAU;
-    return [cx + Math.cos(a) * r, cy, cz + Math.sin(a) * r];
+  const n = DISCO.beamFade.length;
+  for (let i = 0; i < DISCO.ballCones; i++) {
+    const lon = (i / DISCO.ballCones) * TAU, lat = DISCO.coneLats[i % DISCO.coneLats.length];
+    const d = turn([Math.cos(lat) * Math.sin(lon), Math.sin(lat), Math.cos(lat) * Math.cos(lon)]);
+    const sy = by + d[1] * R, ground = d[1] < -0.05, k = ground ? (gy - sy) / d[1] : DISCO.skyLen, r = ground ? DISCO.spotRadius : DISCO.skyLen * DISCO.skyCone;
+    const a = at(d[0] * R, sy, d[2] * R), e = [d[0] * (R + k), sy + d[1] * k, d[2] * (R + k)];
+    const ring = Array.from({ length: DISCO.coneRays }, (_, q) => at(e[0] + Math.cos((q / DISCO.coneRays) * TAU) * r, e[1], e[2] + Math.sin((q / DISCO.coneRays) * TAU) * r));
+    buf.color = hueRgb(((i / DISCO.ballCones) * 6 + t * DISCO.hueCycle) % 6);
+    for (const b of ring) for (let p = 0; p < n; p++) segment(buf, cam, lerp3(a, b, p / n), lerp3(a, b, (p + 1) / n), DISCO.coneRay * DISCO.beamFade[p], occ, owner);
+    if (ground) ring.forEach((p, q) => segment(buf, cam, p, ring[(q + 1) % ring.length], 0.8, occ));
+  }
+  SPECKS.forEach((v, j) => {
+    const d = turn(v), k = (gy - by) / d[1], x = d[0] * k, z = d[2] * k;
+    buf.color = hueRgb(((j / DISCO.specks) * 6 + t * DISCO.hueCycle) % 6).map((c) => (c + 1) / 2);
+    segment(buf, cam, at(x - DISCO.speckSize, gy, z), at(x + DISCO.speckSize, gy, z), 0.9, occ);
+    segment(buf, cam, at(x, gy, z - DISCO.speckSize), at(x, gy, z + DISCO.speckSize), 0.9, occ);
   });
-  const step = Math.floor(t * DISCO.chaseRate), gy = (-320 * MODEL_Y_SCALE - s.y) / MODEL_Y_SCALE, lit = [], pts = [];
-  for (let j = 0; j < 8; j++) {
-    const age = ((step - j) % 8 + 8) % 8;
-    if (age >= DISCO.chaseTail.length) continue;
-    for (const m of [j, j + 8]) {
-      const [rx, , rz] = RIM[m], r = Math.hypot(rx, rz), f = (r + DISCO.rimReach) / r, lx = rx * f, lz = rz * f;
-      lit.push({ m, k: DISCO.chaseTail[age] });
-      pts.push(RIM[m], ...ring(lx, gy, lz, DISCO.spotRadius));
-    }
-  }
-  const v = placeVerts(cam, { verts: pts }, s.x, s.y, s.z, s.spin), stride = 1 + DISCO.coneRays;
-  lit.forEach(({ m, k }, i) => {
-    const o = i * stride, spot = v.slice(o + 1, o + stride), rgb = hueRgb(((m / 16) * 6 + t * DISCO.hueCycle) % 6);
-    cone(v[o], spot, k, rgb);
-    spot.forEach((p, q) => segment(buf, cam, p, spot[(q + 1) % spot.length], k * 0.8, occ));
-  });
-  // The sky ring is level; at this tilt that is close enough to square-on to read as a cone.
-  const sin = Math.sin(DISCO.skyTilt) * DISCO.skyLen, cos = Math.cos(DISCO.skyTilt) * DISCO.skyLen;
-  for (let i = 0; i < DISCO.skyBeams; i++) {
-    const a = (i / DISCO.skyBeams) * TAU + t * DISCO.beamSpin, dx = Math.sin(a) * sin, dz = Math.cos(a) * sin;
-    const tip = [top[0][0] + dx * cam.cos - dz * cam.sin, top[0][1] + cos, top[0][2] + dx * cam.sin + dz * cam.cos];
-    cone(top[0], ring(tip[0], tip[1], tip[2], DISCO.skyLen * DISCO.skyCone), 1, hueRgb(((i / DISCO.skyBeams) * 6 + t * DISCO.hueCycle) % 6));
-  }
-  const led = placeVerts(cam, LEDS, s.x, s.y, s.z, s.spin);
-  for (let k = 0; k < DISCO.leds; k++) {
-    buf.color = hueRgb(((k / DISCO.leds) * 6 + t * DISCO.ledChase) % 6);
-    segment(buf, cam, led[2 * k], led[2 * k + 1], 1.3, occ, owner);
-  }
 }
 
 export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam), fx = null) {
@@ -396,9 +378,8 @@ export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam), fx =
     buf.color = base;
   }
   g.saucers.forEach((s, i) => {
-    if (fx) buf.color = DISCO.silver;
-    drawModel(buf, cam, SHAPES.saucer, s.x, s.y, s.z, s.spin, 1, occ, `saucer:${i}`);
-    if (fx) drawDiscoSaucer(buf, cam, s, t, occ, `saucer:${i}`);
+    if (fx) drawMirrorBall(buf, cam, s, t, occ, `saucer:${i}`);
+    else drawModel(buf, cam, SHAPES.saucer, s.x, s.y, s.z, s.spin, 1, occ, `saucer:${i}`);
     buf.color = base;
   });
   for (const sh of g.shells) drawModel(buf, cam, SHAPES.shell, sh.x, 0, sh.z, Math.atan2(sh.vx, sh.vz), 1, occ);

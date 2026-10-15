@@ -1,5 +1,5 @@
 import { createVectorRenderer, bitmapSize, fitFrame } from './render/gl.js?v=17';
-import { createLineBuffer, createDisco, updateDisco, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=27';
+import { createLineBuffer, createDisco, updateDisco, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=28';
 import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle } from './render/hud.js?v=15';
 import { createGame, step } from './game.js?v=2';
 import { createInput } from './input.js?v=2';
@@ -64,8 +64,8 @@ const silence = () => audio.update({ on: false });
 function frameAttract(inp, dt) {
   silence();
   const cam = makeCamera(0, 0, app.modeT * 0.15);
-  const occ = worldOccluders(attractWorld, cam);
   const fx = app.phosphor === 'disco' ? disco : null;
+  const occ = worldOccluders(attractWorld, cam, fx);
   if (fx) updateDisco(fx, attractWorld, dt);
   drawBackground(buf, cam, dt, occ, fx);
   drawWorld(buf, attractWorld, cam, app.t, occ, fx);
@@ -91,8 +91,8 @@ function framePlay(inp, dt) {
     saucer: g.saucers.some((s) => inView(cam, s.x, s.z)),
     missile: g.enemy?.kind === 'missile',
   });
-  const occ = worldOccluders(g, cam);
   const fx = app.phosphor === 'disco' ? disco : null;
+  const occ = worldOccluders(g, cam, fx);
   if (fx) updateDisco(fx, g, dt);
   drawBackground(buf, cam, dt, occ, fx);
   drawWorld(buf, g, cam, app.t, occ, fx);

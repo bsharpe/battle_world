@@ -49,19 +49,20 @@ export const DISCO = {
   sparkSpread: 600, // max sideways spark speed (world units/s)
   sparkLift: [300, 1200], // min/max upward spark speed
   silver: [0.85, 0.9, 1.0],      // mirror-ball hull
-  facetRings: [0.25, 0.5, 0.75], // top-cone rings, as fractions from rim to apex
   glintEvery: 0.2, glints: 3,    // facet glints reshuffle every glintEvery seconds
-  chaseRate: 8,                  // rim beam pairs stepped per second
-  chaseTail: [1, 0.55, 0.25],    // brightness of the lit pair and the two before it
-  rimReach: 2000,                // ground distance past the rim where rim beams land
   spotRadius: 500,               // pool of light where a rim cone meets the ground
-  skyBeams: 5, skyTilt: 0.44, skyLen: 9000, // beams from the apex: count, lean from vertical (rad), length
+  skyLen: 9000,                  // sky cone length
   skyCone: 0.12,                 // sky cone radius at its tip, as a fraction of its length
   coneRays: 8, coneRay: 0.5,     // rays per light cone, and each ray's share of the beam brightness
-  beamSpin: 1.2,                 // rad/s the sky beams sweep
   beamFade: [1.2, 0.9, 0.6, 0.3], // piece brightness, source to tip
+  ballY: 240, ballR: 600,        // mirror ball centre height above the saucer origin, and radius (view units)
+  ballSpin: 0.6,                 // rad/s the ball turns
+  ballGrid: [12, 8],             // facet grid: longitudes, latitude bands
+  ballCones: 10,                 // light cones thrown from facets
+  coneLats: [-0.9, -0.45, 0.5],  // facet latitudes (rad) the cones cycle through; negative lands on the ground
+  cableLen: 12000,               // cable from the top of the ball into the sky
+  specks: 48, speckMax: 1.2, speckSize: 70, // ground light specks: count, max angle from straight down (rad), cross half-size
   hueCycle: 1,                   // hue units/s every beam drifts (full rainbow every 6 s)
-  leds: 32, ledChase: 3,         // rim LED count, and hue units/s the colors chase
   sparkGravity: 3000, // world units/s^2
   sparkStreak: 0.04, // seconds of travel each streak covers
   glass: [0.8, 0.9, 1.0],        // blue-white crack color
