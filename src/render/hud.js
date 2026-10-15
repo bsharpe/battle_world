@@ -205,6 +205,16 @@ const textWidth = (text, scale = 0.5) => ((text.length - 1) * 24 + 16) * scale;
 // U is left off on purpose: it's a hidden show-off key.
 const CONTROLS = ['ENTER START  SPACE FIRE  WASD OR ARROWS MOVE', 'T TREADS  C COLOR  F FULLSCREEN'];
 
+const MODE_NAMES = { green: 'ORIGINAL MODE', amber: 'AMBER MODE', disco: 'DISCO MODE' };
+const BANNER = { scale: 1.5, y: -140, hold: 1.5, fade: 0.5 }; // y sits between the horizon and PRESS START
+
+// Names the color mode C just switched to: held, then faded out. t is seconds since the switch.
+export function drawModeBanner(buf, phosphor, t) {
+  const bright = Math.min(1, (BANNER.hold + BANNER.fade - t) / BANNER.fade), text = MODE_NAMES[phosphor];
+  if (bright <= 0) return;
+  drawText(buf, text, -textWidth(text, BANNER.scale) / 2, BANNER.y, bright, BANNER.scale);
+}
+
 export function drawInitials(buf, entry, letters, t) {
   say(buf, 'GREAT SCORE');
   say(buf, 'ENTER YOUR INITIALS');

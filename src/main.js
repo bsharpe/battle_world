@@ -1,6 +1,6 @@
 import { createVectorRenderer, bitmapSize, fitFrame } from './render/gl.js?v=17';
 import { createLineBuffer, createDisco, updateDisco, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=30';
-import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle } from './render/hud.js?v=16';
+import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle, drawModeBanner } from './render/hud.js?v=17';
 import { createGame, step, stepTitle } from './game.js?v=3';
 import { createInput } from './input.js?v=2';
 import { createAudio } from './audio.js';
@@ -49,6 +49,7 @@ let attractWorld = createGame(); // the obstacle field for the backdrop, plus th
 const app = {
   mode: params.get('view') === 'shapes' ? 'shapes' : 'attract',
   scores: loadScores(), game: null, hud: createHudState(), t: 0, modeT: 0, overFor: 0, entry: null, shape: 0, games: 0,
+  bannerT: Infinity, // seconds since C last switched the color mode
   phosphor,
 };
 window.__bz = app; // debug handle for browser verification
@@ -144,12 +145,15 @@ requestAnimationFrame(function frame(now) {
   if (inp.color) {
     phosphor = nextPhosphor(phosphor);
     app.phosphor = phosphor;
+    app.bannerT = 0;
     try { localStorage.setItem(PHOSPHOR_KEY, phosphor); } catch { /* private mode */ }
   }
   if (inp.fullscreen) (document.fullscreenElement ? document.exitFullscreen() : canvas.requestFullscreen()).catch(() => {});
   buf.clear();
   buf.color = PHOSPHOR[app.phosphor];
   FRAMES[app.mode](inp, dt);
+  buf.color = PHOSPHOR[app.phosphor];
+  drawModeBanner(buf, app.phosphor, app.bannerT += dt);
   // The attract wordmark sits in the score band. That band is the in-game overlay.
   renderer.setRedLine(app.mode === 'play' ? VIEW.redLinePx : 0);
   renderer.draw(buf, dt);

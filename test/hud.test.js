@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { radarBlip, enemyDirection, enemyInRange, onTarget, sweepCrossed, drawHud, drawText, drawTitle, drawAttractText, glassWeb } from '../src/render/hud.js';
+import { radarBlip, enemyDirection, enemyInRange, onTarget, sweepCrossed, drawHud, drawText, drawTitle, drawAttractText, drawModeBanner, glassWeb } from '../src/render/hud.js';
 import { VIEW } from '../src/config.js';
 import { STRINGS, VG } from '../src/data/rom.js';
 
@@ -178,4 +178,23 @@ test('disco glass rings start and end on a crack or spoke, so no ring floats loo
       assert.ok(onCrack(ax, ay) && onCrack(bx, by), `ring chord (${ax},${ay})-(${bx},${by}) floats off the cracks`);
     }
   }
+});
+
+test('switching color mode names the new mode on screen, then clears it', () => {
+  // C cycles three looks. The banner tells players which one they landed on, then gets out of the way.
+  // Shapes are compared with position and size factored out, so only the spelling counts.
+  const shape = (draw) => {
+    const segs = [];
+    draw({ push() {}, pushText: (...s) => segs.push(s) });
+    const pts = segs.flatMap(([x0, y0, x1, y1]) => [[x0, y0], [x1, y1]]);
+    const minX = Math.min(...pts.map((p) => p[0])), minY = Math.min(...pts.map((p) => p[1]));
+    const h = Math.max(...pts.map((p) => p[1])) - minY;
+    return segs.map((s) => s.slice(0, 4).map((v, i) => ((v - (i % 2 ? minY : minX)) / h).toFixed(3)).join()).sort();
+  };
+  for (const [mode, name] of [['green', 'ORIGINAL MODE'], ['amber', 'AMBER MODE'], ['disco', 'DISCO MODE']]) {
+    assert.deepEqual(shape((b) => drawModeBanner(b, mode, 0)), shape((b) => drawText(b, name, 0, 0)), `${mode} banner`);
+  }
+  const late = [];
+  drawModeBanner({ push() {}, pushText: (...s) => late.push(s) }, 'disco', 5);
+  assert.equal(late.length, 0, 'the banner is gone a few seconds after the switch');
 });
