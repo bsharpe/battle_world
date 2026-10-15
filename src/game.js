@@ -133,6 +133,16 @@ function updateShells(g, dt) {
   });
 }
 
+// Disco title screen: after a random wait, one mirror ball turns up where the turning camera looks.
+export function stepTitle(g, facing, dt) {
+  if (!g.saucers.length) {
+    if ((g.saucerDelay -= dt) > 0) return;
+    g.player.facing = facing;
+    spawnUfo(g);
+  }
+  updateSaucer(g, dt);
+}
+
 function spawnUfo(g) {
   if (g.saucers.length >= UFO_KEY.max) return;
   const p = g.player, b = p.facing + (g.rng() * 2 - 1) * UFO_KEY.spread;

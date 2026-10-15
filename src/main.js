@@ -1,7 +1,7 @@
 import { createVectorRenderer, bitmapSize, fitFrame } from './render/gl.js?v=17';
 import { createLineBuffer, createDisco, updateDisco, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=30';
 import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle } from './render/hud.js?v=15';
-import { createGame, step } from './game.js?v=2';
+import { createGame, step, stepTitle } from './game.js?v=3';
 import { createInput } from './input.js?v=2';
 import { createAudio } from './audio.js';
 import { loadScores, saveScores, rankFor, insertScore, editInitials } from './highscores.js';
@@ -45,7 +45,7 @@ const buf = createLineBuffer(), input = createInput(), audio = createAudio();
 for (const ev of ['keydown', 'pointerdown']) addEventListener(ev, () => audio.unlock());
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ ';
-const attractWorld = createGame(); // never stepped: just the obstacle field for the backdrop
+let attractWorld = createGame(); // the obstacle field for the backdrop, plus the disco title ball
 const app = {
   mode: params.get('view') === 'shapes' ? 'shapes' : 'attract',
   scores: loadScores(), game: null, hud: createHudState(), t: 0, modeT: 0, overFor: 0, entry: null, shape: 0, games: 0,
@@ -57,14 +57,19 @@ const iom = document.getElementById('iom');
 iom.hidden = app.mode !== 'attract';
 // Keep keyboard activation of the link from also starting a game.
 iom.addEventListener('keydown', (event) => event.stopPropagation());
-const setMode = (mode) => { app.mode = mode; app.modeT = 0; iom.hidden = mode !== 'attract'; };
+const setMode = (mode) => {
+  app.mode = mode; app.modeT = 0; iom.hidden = mode !== 'attract';
+  if (mode === 'attract') attractWorld = createGame(); // each title sequence rolls a fresh wait for its ball
+};
 const disco = createDisco();
 const silence = () => audio.update({ on: false });
 
 function frameAttract(inp, dt) {
   silence();
-  const cam = makeCamera(0, 0, app.modeT * 0.15);
+  const facing = app.modeT * 0.15, cam = makeCamera(0, 0, facing);
   const fx = app.phosphor === 'disco' ? disco : null;
+  if (fx) stepTitle(attractWorld, facing, dt);
+  else attractWorld.saucers = [];
   const occ = worldOccluders(attractWorld, cam, fx);
   if (fx) updateDisco(fx, attractWorld, dt);
   drawBackground(buf, cam, dt, occ, fx);

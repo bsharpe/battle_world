@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, step } from '../src/game.js';
+import { createGame, step, stepTitle } from '../src/game.js';
 import { mulberry32, bearing, wrapAngle } from '../src/math.js';
 import { PLAYER, UFO_KEY } from '../src/config.js';
 
@@ -232,4 +232,20 @@ test('a shell brings down only the saucer it hits', () => {
   run(g, IDLE, 0.7);
   assert.equal(g.score, 5000);
   assert.deepEqual(g.saucers.map((s) => s.x), [8000], 'the wrong saucer went down, or both did');
+});
+
+test('the disco title screen gets one mirror ball, after a random wait, where the camera is looking', () => {
+  // The title screen is a showcase: the ball has to arrive in view to be seen at all,
+  // and one ball is a visitor where several would be the U key's swarm.
+  const g = createGame({ rng: mulberry32(3), obstacles: [] });
+  g.saucerDelay = 2;
+  stepTitle(g, 1.2, 1.98);
+  assert.equal(g.saucers.length, 0, 'nothing before the wait runs out');
+  stepTitle(g, 1.2, 1 / 30);
+  assert.equal(g.saucers.length, 1);
+  const s = g.saucers[0];
+  const off = Math.abs(wrapAngle(bearing(0, 0, s.x, s.z) - 1.2));
+  assert.ok(off <= UFO_KEY.spread + 0.05, `the ball turns up ${off} rad off the camera heading`);
+  for (let t = 0; t < 120; t += 0.05) stepTitle(g, t * 0.15, 0.05);
+  assert.equal(g.saucers.length, 1, 'still one ball two minutes later');
 });
