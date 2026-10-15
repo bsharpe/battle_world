@@ -194,7 +194,7 @@ export function drawAttractText(buf, t, scores) {
   if (Math.floor(t / 6) % 2 === 1) {
     say(buf, 'HIGH SCORES');
     scores.forEach((s, i) => drawText(buf, `${String(s.score).padStart(7)}  ${s.initials}`, -120, 120 - i * 20));
-  } else if (Math.floor(t * 2) % 2 === 0) drawText(buf, 'PRESS START', -136, -200);
+  } else if (Math.floor(t * 2) % 2 === 0) drawText(buf, 'PRESS START', -textWidth('PRESS START') / 2, -200);
   const bonus = 'BONUS TANK AT 15000 AND 100000';
   drawText(buf, bonus, -textWidth(bonus) / 2, STRINGS.find((e) => e.text === 'BONUS TANK AT').y);
   CONTROLS.forEach((row, i) => drawText(buf, row, -textWidth(row) / 2, -316 - i * 24, 0.7));
