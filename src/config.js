@@ -24,12 +24,16 @@ export const BG = {
   volcanoY: 88,   // ponytail: that rim, so the rocks leave the crater instead of a notch elsewhere on the range
 };
 
-// Field phosphor. The red overlay stays red. A later disco mode needs a color per
-// line; it is not another entry here, because one vec3 tints the whole field.
+// Field phosphor. The red overlay stays red. Lines carry their own color; disco is the
+// green base plus the per-object colors scene.js assigns.
 export const PHOSPHOR = {
   green: [0.25, 1.0, 0.35],
   amber: [1.0, 0.55, 0.04], // ponytail: amber vector phosphor, hotter than the red overlay
+  disco: [0.25, 1.0, 0.35],
 };
+
+// Disco flip interval in seconds, kept under 3 flashes/s (photosensitivity limit).
+export const DISCO = { white: [1, 1, 1], flipMin: 0.5, flipMax: 1.5 };
 
 export function nextPhosphor(name) {
   const names = Object.keys(PHOSPHOR);

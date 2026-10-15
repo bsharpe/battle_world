@@ -2,18 +2,20 @@ const LINE_VS = `#version 300 es
 layout(location = 0) in vec2 corner;
 layout(location = 1) in vec4 seg;
 layout(location = 2) in float inten;
+layout(location = 3) in vec3 col;
 uniform vec2 res;
 uniform float halfW;
 out vec2 vP;
 out vec4 vSeg;
 out float vI;
+out vec3 vC;
 void main() {
   vec2 a = seg.xy, b = seg.zw, d = b - a;
   float len = length(d);
   vec2 dir = len > 0.001 ? d / len : vec2(1.0, 0.0);
   vec2 n = vec2(-dir.y, dir.x);
   vec2 p = mix(a - dir * halfW, b + dir * halfW, corner.x) + n * (corner.y * halfW);
-  vP = p; vSeg = seg; vI = inten;
+  vP = p; vSeg = seg; vI = inten; vC = col;
   gl_Position = vec4(p.x / res.x * 2.0 - 1.0, 1.0 - p.y / res.y * 2.0, 0.0, 1.0);
 }`;
 
@@ -22,13 +24,15 @@ precision highp float;
 in vec2 vP;
 in vec4 vSeg;
 in float vI;
+in vec3 vC;
 uniform float sigma;
 out vec4 o;
 void main() {
   vec2 pa = vP - vSeg.xy, ba = vSeg.zw - vSeg.xy;
   float h = clamp(dot(pa, ba) / max(dot(ba, ba), 0.0001), 0.0, 1.0);
   float d = length(pa - ba * h);
-  o = vec4(exp(-d * d / (2.0 * sigma * sigma)) * vI, 0.0, 0.0, 1.0);
+  float g = exp(-d * d / (2.0 * sigma * sigma)) * vI;
+  o = vec4(vC * g, g);
 }`;
 
 const FULL_VS = `#version 300 es
@@ -66,12 +70,12 @@ in vec2 uv;
 uniform sampler2D glow, bloom, text;
 uniform float bloomK, redLine;
 uniform vec2 res;
-uniform vec3 green, red;
+uniform vec3 red;
 out vec4 o;
 void main() {
-  float v = texture(glow, uv).r + texture(bloom, uv).r * bloomK + texture(text, uv).r;
-  vec3 tint = (1.0 - uv.y) * res.y < redLine ? red : green;
-  o = vec4(1.0 - exp(-v * tint * 1.5), 1.0);
+  vec4 v = texture(glow, uv) + texture(bloom, uv) * bloomK + texture(text, uv);
+  vec3 c = (1.0 - uv.y) * res.y < redLine ? 1.0 - exp(-v.a * red * 1.5) : 1.0 - exp(-v.rgb * 1.5);
+  o = vec4(c, 1.0);
 }`;
 
 // Bitmap is capped at 2× the 1920×1080 picture so a retina CSS fit is a downscale, not an upscale.
@@ -89,7 +93,7 @@ export function fitFrame(viewW, viewH, vw, vh) {
 export function createVectorRenderer(canvas, opts = {}) {
   const o = {
     lineHalfWidth: 3.5, sigma: 1.1, persistence: 0.02, bloom: 0.25, redLinePx: 216,
-    green: [0.25, 1.0, 0.35], red: [1.0, 0.22, 0.18], maxLines: 32768,
+    red: [1.0, 0.22, 0.18], maxLines: 32768,
     viewWidth: canvas.width, viewHeight: canvas.height, ...opts,
   };
   const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
@@ -152,6 +156,12 @@ export function createVectorRenderer(canvas, opts = {}) {
   gl.enableVertexAttribArray(2);
   gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 20, 16);
   gl.vertexAttribDivisor(2, 1);
+  const instCol = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, instCol);
+  gl.bufferData(gl.ARRAY_BUFFER, o.maxLines * 12, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(3);
+  gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 12, 0);
+  gl.vertexAttribDivisor(3, 1);
   const fullVao = gl.createVertexArray();
   let cur = 0;
 
@@ -170,15 +180,14 @@ export function createVectorRenderer(canvas, opts = {}) {
   };
 
   return {
-    setPhosphor(rgb) { o.green = rgb; },
     setRedLine(px) { o.redLinePx = px; },
     draw(buf, dt) {
-      const stroke = (src, count, halfW, sigma, clear) => {
+      const stroke = (src, srcRgb, count, halfW, sigma, clear) => {
         const n = Math.min(count, o.maxLines);
         gl.bindFramebuffer(gl.FRAMEBUFFER, fresh.fb);
         gl.viewport(0, 0, W, H);
         if (clear) {
-          gl.clearColor(0, 0, 0, 1);
+          gl.clearColor(0, 0, 0, 0); // alpha is the red band's intensity, so it starts dark too
           gl.clear(gl.COLOR_BUFFER_BIT);
         }
         if (!n) return;
@@ -189,15 +198,17 @@ export function createVectorRenderer(canvas, opts = {}) {
         gl.bindVertexArray(lineVao);
         gl.bindBuffer(gl.ARRAY_BUFFER, inst);
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, src, 0, n * 5);
+        gl.bindBuffer(gl.ARRAY_BUFFER, instCol);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, srcRgb, 0, n * 3);
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.ONE, gl.ONE);
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, n);
         gl.disable(gl.BLEND);
       };
-      stroke(buf.data, buf.count, o.lineHalfWidth, o.sigma, true);
+      stroke(buf.data, buf.rgb, buf.count, o.lineHalfWidth, o.sigma, true);
       // A point at the frame sigma is a few pixels, and the half-res bloom only spreads it by about six.
       // halfW stays past 3 sigma so the disk is the gaussian, not a clipped box.
-      stroke(buf.dots, buf.dotCount, 22, 6.5, false);
+      stroke(buf.dots, buf.dotRgb, buf.dotCount, 22, 6.5, false);
 
       const prev = glow[cur], next = glow[1 - cur];
       cur = 1 - cur;
@@ -205,12 +216,11 @@ export function createVectorRenderer(canvas, opts = {}) {
       fullscreen(blur, halfA, [['src', next]], (u) => gl.uniform2f(u.dir, 2 / VW, 0));
       fullscreen(blur, halfB, [['src', halfA]], (u) => gl.uniform2f(u.dir, 0, 2 / VH));
       // After the bloom source is taken. A narrow core only: no halo on glyphs or the wordmark.
-      stroke(buf.text, buf.textCount, 1.4, 0.4, true);
+      stroke(buf.text, buf.textRgb, buf.textCount, 1.4, 0.4, true);
       fullscreen(out, null, [['glow', next], ['bloom', halfB], ['text', fresh]], (u) => {
         gl.uniform1f(u.bloomK, o.bloom);
         gl.uniform1f(u.redLine, o.redLinePx);
         gl.uniform2f(u.res, VW, VH);
-        gl.uniform3fv(u.green, o.green);
         gl.uniform3fv(u.red, o.red);
       });
     },

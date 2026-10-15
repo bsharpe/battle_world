@@ -1,5 +1,5 @@
-import { createVectorRenderer, bitmapSize, fitFrame } from './render/gl.js?v=15';
-import { createLineBuffer, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=17';
+import { createVectorRenderer, bitmapSize, fitFrame } from './render/gl.js?v=17';
+import { createLineBuffer, createDisco, updateDisco, makeCamera, drawBackground, drawWorld, drawModel, inView, worldOccluders, modelOccluders } from './render/scene.js?v=18';
 import { createHudState, updateHudState, drawHud, drawAttractText, drawInitials, drawText, drawTitle } from './render/hud.js?v=13';
 import { createGame, step } from './game.js';
 import { createInput } from './input.js';
@@ -41,7 +41,6 @@ function loadPhosphor() {
   return 'green';
 }
 let phosphor = loadPhosphor();
-renderer.setPhosphor(PHOSPHOR[phosphor]);
 const buf = createLineBuffer(), input = createInput(), audio = createAudio();
 for (const ev of ['keydown', 'pointerdown']) addEventListener(ev, () => audio.unlock());
 
@@ -59,6 +58,7 @@ iom.hidden = app.mode !== 'attract';
 // Keep keyboard activation of the link from also starting a game.
 iom.addEventListener('keydown', (event) => event.stopPropagation());
 const setMode = (mode) => { app.mode = mode; app.modeT = 0; iom.hidden = mode !== 'attract'; };
+const disco = createDisco();
 const silence = () => audio.update({ on: false });
 
 function frameAttract(inp, dt) {
@@ -66,7 +66,8 @@ function frameAttract(inp, dt) {
   const cam = makeCamera(0, 0, app.modeT * 0.15);
   const occ = worldOccluders(attractWorld, cam);
   drawBackground(buf, cam, dt, occ);
-  drawWorld(buf, attractWorld, cam, app.t, occ);
+  if (app.phosphor === 'disco') updateDisco(disco, attractWorld, dt);
+  drawWorld(buf, attractWorld, cam, app.t, occ, app.phosphor === 'disco' ? disco : null);
   drawTitle(buf);
   drawAttractText(buf, app.modeT, app.scores);
   if (inp.start) {
@@ -91,7 +92,8 @@ function framePlay(inp, dt) {
   });
   const occ = worldOccluders(g, cam);
   drawBackground(buf, cam, dt, occ);
-  drawWorld(buf, g, cam, app.t, occ);
+  if (app.phosphor === 'disco') updateDisco(disco, g, dt);
+  drawWorld(buf, g, cam, app.t, occ, app.phosphor === 'disco' ? disco : null);
   drawHud(buf, g, app.hud, Math.max(app.scores[0].score, g.score), app.t);
   if (g.over && (app.overFor += dt) > 3) {
     if (rankFor(app.scores, g.score) >= 0) {
@@ -135,11 +137,11 @@ requestAnimationFrame(function frame(now) {
   if (inp.color) {
     phosphor = nextPhosphor(phosphor);
     app.phosphor = phosphor;
-    renderer.setPhosphor(PHOSPHOR[phosphor]);
     try { localStorage.setItem(PHOSPHOR_KEY, phosphor); } catch { /* private mode */ }
   }
   if (inp.fullscreen) (document.fullscreenElement ? document.exitFullscreen() : canvas.requestFullscreen()).catch(() => {});
   buf.clear();
+  buf.color = PHOSPHOR[app.phosphor];
   FRAMES[app.mode](inp, dt);
   // The attract wordmark sits in the score band. That band is the in-game overlay.
   renderer.setRedLine(app.mode === 'play' ? VIEW.redLinePx : 0);

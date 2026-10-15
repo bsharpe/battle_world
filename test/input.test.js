@@ -37,9 +37,10 @@ test('holding fire produces one shot, not a stream', () => {
   assert.equal(input.read().fire, true);
 });
 
-test('C cycles the field phosphor once per press, green then amber', () => {
+test('C cycles the field phosphor once per press, green, amber, disco', () => {
   assert.equal(nextPhosphor('green'), 'amber');
-  assert.equal(nextPhosphor('amber'), 'green');
+  assert.equal(nextPhosphor('amber'), 'disco');
+  assert.equal(nextPhosphor('disco'), 'green');
   assert.ok(PHOSPHOR.green[1] > PHOSPHOR.green[0], 'green phosphor is green');
   assert.ok(PHOSPHOR.amber[0] > PHOSPHOR.amber[1] && PHOSPHOR.amber[1] > PHOSPHOR.amber[2], 'amber phosphor is orange');
   const win = fakeWindow(), input = createInput(win);

@@ -1,5 +1,5 @@
 import { SHAPES, VG } from '../data/rom.js';
-import { VIEW, MODEL_Y_SCALE, BG } from '../config.js';
+import { VIEW, MODEL_Y_SCALE, BG, DISCO } from '../config.js';
 import { TAU, wrapCoord, delta } from '../math.js';
 import { hullFaces, faceOccluder, visibleSpans, clipScreenLine, screenCovered, silhouettes, mergeCoplanar } from './occlude.js?v=17';
 
@@ -7,25 +7,30 @@ export function createLineBuffer(max = 32768) {
   const data = new Float32Array(max * 5);
   const text = new Float32Array(max * 5);
   const dots = new Float32Array(max * 5);
+  const rgb = new Float32Array(max * 3), textRgb = new Float32Array(max * 3), dotRgb = new Float32Array(max * 3);
   return {
-    data, text, dots,
+    data, text, dots, rgb, textRgb, dotRgb,
+    color: [0.25, 1.0, 0.35],
     count: 0,
     textCount: 0,
     dotCount: 0,
     push(x0, y0, x1, y1, intensity) {
       if (this.count >= max) return;
-      const o = this.count++ * 5;
+      const i = this.count, o = this.count++ * 5;
+      rgb.set(this.color, i * 3);
       data[o] = x0; data[o + 1] = y0; data[o + 2] = x1; data[o + 3] = y1; data[o + 4] = intensity;
     },
     // Glyphs and the wordmark skip the bloom pass.
     pushText(x0, y0, x1, y1, intensity) {
       if (this.textCount >= max) return;
-      const o = this.textCount++ * 5;
+      const i = this.textCount, o = this.textCount++ * 5;
+      textRgb.set(this.color, i * 3);
       text[o] = x0; text[o + 1] = y0; text[o + 2] = x1; text[o + 3] = y1; text[o + 4] = intensity;
     },
     pushDot(x0, y0, x1, y1, intensity) {
       if (this.dotCount >= max) return;
-      const o = this.dotCount++ * 5;
+      const i = this.dotCount, o = this.dotCount++ * 5;
+      dotRgb.set(this.color, i * 3);
       dots[o] = x0; dots[o + 1] = y0; dots[o + 2] = x1; dots[o + 3] = y1; dots[o + 4] = intensity;
     },
     clear() { this.count = 0; this.textCount = 0; this.dotCount = 0; },
@@ -188,10 +193,29 @@ export function drawBackground(buf, cam, dt, occ = NONE) {
   });
 }
 
-export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam)) {
-  g.obstacles.forEach((o, i) => drawModel(buf, cam, SHAPES[OBSTACLE_SHAPES[o.type]], o.x, 0, o.z, o.facing, 1, occ, `obs:${i}`));
+export function createDisco() { return { obstacles: [] }; }
+
+// Math.random, not the game rng: colors must not touch gameplay.
+export function updateDisco(fx, g, dt) {
+  g.obstacles.forEach((o, i) => {
+    const s = fx.obstacles[i] ??= { color: null, timer: 0 };
+    if ((s.timer -= dt) > 0) return;
+    const h = Math.random() * 6;
+    s.color = [0, 4, 2].map((k) => Math.min(1, Math.max(0, Math.abs(((h + k) % 6) - 3) - 1)));
+    s.timer = DISCO.flipMin + Math.random() * (DISCO.flipMax - DISCO.flipMin);
+  });
+}
+
+export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam), fx = null) {
+  const base = buf.color;
+  g.obstacles.forEach((o, i) => {
+    if (fx) buf.color = fx.obstacles[i]?.color ?? base;
+    drawModel(buf, cam, SHAPES[OBSTACLE_SHAPES[o.type]], o.x, 0, o.z, o.facing, 1, occ, `obs:${i}`);
+    buf.color = base;
+  });
   const e = g.enemy;
   if (e) {
+    if (fx && (e.kind === 'tank' || e.kind === 'super')) buf.color = DISCO.white;
     drawModel(buf, cam, SHAPES[ENEMY_SHAPES[e.kind]], e.x, e.y, e.z, e.facing, 1, occ, 'enemy');
     if (e.kind === 'tank') {
       // Only the tread end facing the viewer is drawn; frames advance with distance travelled (reverse when backing up).
@@ -208,6 +232,7 @@ export function drawWorld(buf, g, cam, t = 0, occ = worldOccluders(g, cam)) {
       const s = Math.sin(e.facing), c = Math.cos(e.facing);
       drawModel(buf, cam, DISH, e.x + DISH_X * c + DISH_Z * s, e.y, e.z - DISH_X * s + DISH_Z * c, e.facing + t * 3, 1, occ, 'enemy');
     }
+    buf.color = base;
   }
   const s = g.saucer;
   if (s) drawModel(buf, cam, SHAPES.saucer, s.x, s.y, s.z, s.spin, 1, occ, 'saucer');
