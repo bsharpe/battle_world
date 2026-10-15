@@ -195,9 +195,9 @@ export function drawAttractText(buf, t, scores) {
     say(buf, 'HIGH SCORES');
     scores.forEach((s, i) => drawText(buf, `${String(s.score).padStart(7)}  ${s.initials}`, -120, 120 - i * 20));
   } else if (Math.floor(t * 2) % 2 === 0) drawText(buf, 'PRESS START', -136, -200);
-  const bonus = 'BONUS TANK AT 15000 AND 100000', mid = STRINGS.find((e) => e.text === 'BONUS TANK AT').x + textWidth(bonus) / 2;
-  say(buf, 'BONUS TANK AT', bonus);
-  CONTROLS.forEach((row, i) => drawText(buf, row, mid - textWidth(row) / 2, -316 - i * 24, 0.7));
+  const bonus = 'BONUS TANK AT 15000 AND 100000';
+  drawText(buf, bonus, -textWidth(bonus) / 2, STRINGS.find((e) => e.text === 'BONUS TANK AT').y);
+  CONTROLS.forEach((row, i) => drawText(buf, row, -textWidth(row) / 2, -316 - i * 24, 0.7));
 }
 
 const textWidth = (text, scale = 0.5) => ((text.length - 1) * 24 + 16) * scale;

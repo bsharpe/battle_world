@@ -137,6 +137,24 @@ test('the attract title reads BATTLE WORLD in the game font', () => {
   assert.ok(Math.abs(mid - CX) < 1, `title is off center by ${mid - CX}`);
 });
 
+test('the bonus and controls lines at the bottom of the title page are centered on screen', () => {
+  // The ROM placed BONUS TANK left of center; the controls hang under it, so the whole block read lopsided.
+  const lines = [];
+  drawAttractText({ push() {}, pushText: (...seg) => lines.push(seg) }, 0, []);
+  const S = VIEW.height / 768, CX = VIEW.width / 2, CY = VIEW.height / 2;
+  const rows = [[-282, -260], [-318, -298], [-342, -322]].map(([lo, hi]) => {
+    const xs = lines.flatMap(([x0, y0, x1, y1]) => [[x0, y0], [x1, y1]])
+      .filter(([, sy]) => { const ay = (CY - sy) / S; return ay >= lo && ay <= hi; })
+      .map(([sx]) => (sx - CX) / S);
+    return xs;
+  });
+  rows.forEach((xs, i) => {
+    assert.ok(xs.length > 0, `row ${i} drew nothing`);
+    const mid = (Math.min(...xs) + Math.max(...xs)) / 2;
+    assert.ok(Math.abs(mid) < 8, `row ${i} is off center by ${mid}`);
+  });
+});
+
 test('the title page does not draw the Atari copyright line', () => {
   const copy = STRINGS.find((e) => e.text.includes('ATARI'));
   const copyright = [];
